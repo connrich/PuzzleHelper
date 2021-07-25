@@ -5,17 +5,23 @@ import sys
 import math
 
 
+# Create the main window
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle('Puzzle Helper')
-        self.initTabs()
+        self.setMinimumSize(400, 500)
+        self.setWindowIcon(QIcon('puzzle_pieces.jpg'))
+
+        # Create tab widget and populate with tabs
+        self.Tabs = QTabWidget()
         self.setCentralWidget(self.Tabs)
+        self.initTabs()
+
         self.show()
 
+    # Initializes QWidget subclasses for tabs
     def initTabs(self):
-        self.Tabs = QTabWidget()
-
         self.killerTab = KillerTab()
         self.mathdokuTab = MathdokuTab()
 
@@ -23,6 +29,7 @@ class MainWindow(QMainWindow):
         self.Tabs.addTab(self.mathdokuTab, 'Mathdoku')
 
 
+# Custom subclass for killer sudoku tab
 class KillerTab(QWidget):
     def __init__(self):
         super(KillerTab, self).__init__()
@@ -33,6 +40,7 @@ class KillerTab(QWidget):
         self.initSettingWidget()
         self.initOptionsWidget()
 
+    # Function to construct the settings widget on the left hand side of tab
     def initSettingWidget(self):
         self.settingLayout = QVBoxLayout()
         self.settingLayout.setAlignment(Qt.AlignTop)
@@ -54,8 +62,8 @@ class KillerTab(QWidget):
         self.cageSpin.setMinimum(1)
         self.settingLayout.addWidget(self.cageSpin)
 
-        self.sumLabel = QLabel('Sum Total (Max. 45)')
-        self.settingLayout.addWidget(self.sumLabel)
+        self.totalLabel = QLabel('Sum Total (Max. 45)')
+        self.settingLayout.addWidget(self.totalLabel)
 
         self.totalSpin = QSpinBox()
         self.totalSpin.setMaximum(45)
@@ -73,17 +81,36 @@ class KillerTab(QWidget):
         self.calculateButton.clicked.connect(self.calculateOptions)
         self.settingLayout.addWidget(self.calculateButton)
 
+    # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
         self.optionsLayout = QGridLayout()
-        self.optionsLayout.setAlignment(Qt.AlignTop)
+        self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+
+        self.combinationsWidget = QWidget()
+        self.combinationsLayout = QVBoxLayout()
+        self.combinationsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.combinationsWidget.setLayout(self.combinationsLayout)
+        self.combinationsLayout.addWidget(self.combinationsWidget)
+        self.layout.addWidget(self.combinationsWidget)
+
+        self.combinationsLabel = QLabel('Combinations')
+        self.combinationsLabel.setFont(QFont('Arial', 13, QFont.Bold))
+        self.combinationsLayout.addWidget(self.combinationsLabel)
+        self.combinationsLabel.setAlignment(Qt.AlignHCenter)
+
         self.optionsWidget = QWidget()
+        self.optionsWidget.setMinimumSize(200, 400)
         self.optionsWidget.setObjectName('optionsWidget')
         self.optionsWidget.setStyleSheet('QWidget#optionsWidget{border: 2px solid rgb(150, 150, 150)};')
         self.optionsWidget.setLayout(self.optionsLayout)
-        self.layout.addWidget(self.optionsWidget)
+        self.combinationsLayout.addWidget(self.optionsWidget)
 
+    # Function connected to 'Calculate' button
     def calculateOptions(self):
+        # Stores valid options
         self.correct = []
+
+        # Checks edge cases for improved performance
         sum_check = sum([i for i in range(1, self.cageSpin.value() + 1, 1)])
         if (self.totalSpin.value() >= sum_check) and (self.totalSpin.value() >= self.cageSpin.value()):
             if self.cageSpin.value() == 9 and self.totalSpin.value() == 45:
@@ -92,34 +119,40 @@ class KillerTab(QWidget):
                 for i in range(1, 10, 1):
                     self.KillerRecursion(self.cageSpin.value(), [])
 
+        # Clears all currently displayed options
         for i in reversed(range(self.optionsLayout.count())):
             self.optionsLayout.itemAt(i).widget().setParent(None)
+
+        # Display valid options or 'No valid options'
         if self.correct:
             for i in self.correct:
                 b = ToggleButton()
                 b.setText(', '.join([str(integer) for integer in i]))
                 self.optionsLayout.addWidget(b)
+            self.optionsLayout.setAlignment(Qt.AlignTop)
         else:
             self.optionsLayout.addWidget(QLabel('No valid options'))
-            self.optionsLayout.setAlignment(Qt.AlignCenter)
+            self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
+    # Recursion algorithm for finding valid combinations
+    # l is a list of currently checked numbers
     def KillerRecursion(self, depth, l):
         for i in range(1, 10, 1):
             if i not in l:
                 temp = l.copy()
                 temp.append(i)
                 if depth == 1:
-                    m = ''
+                    m = 0
                     for num in temp:
-                        m = m + str(num) + '+'
-                    m = m[:-1]
-                    if eval(m) == self.totalSpin.value():
+                        m = m + num
+                    if m == self.totalSpin.value():
                         if sorted(temp) not in self.correct:
                             self.correct.append(sorted(temp))
                 else:
                     self.KillerRecursion(depth - 1, temp)
 
 
+# Custom subclass for mathdoku tab
 class MathdokuTab(QWidget):
     def __init__(self):
         super(MathdokuTab, self).__init__()
@@ -130,6 +163,7 @@ class MathdokuTab(QWidget):
         self.initSettingWidget()
         self.initOptionsWidget()
 
+    # Function to construct the settings widget on the left hand side of the tab
     def initSettingWidget(self):
         self.settingLayout = QVBoxLayout()
         self.settingLayout.setAlignment(Qt.AlignTop)
@@ -185,21 +219,37 @@ class MathdokuTab(QWidget):
         self.calculateButton.clicked.connect(self.calculateOptions)
         self.settingLayout.addWidget(self.calculateButton)
 
-    # Adjusts the settings to reflect the puzzle size
+    # Adjusts the settings to reflect the puzzle size when it is changed
     def adjustSettings(self):
         val = int(self.sizeCombo.currentText()[0])
         self.cageSpin.setMaximum(val)
         self.totalSpin.setMaximum(math.factorial(val))
 
+    # Function to ocnstruct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
         self.optionsLayout = QGridLayout()
-        self.optionsLayout.setAlignment(Qt.AlignTop)
+        self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+
+        self.combinationsWidget = QWidget()
+        self.combinationsLayout = QVBoxLayout()
+        self.combinationsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.combinationsWidget.setLayout(self.combinationsLayout)
+        self.combinationsLayout.addWidget(self.combinationsWidget)
+        self.layout.addWidget(self.combinationsWidget)
+
+        self.combinationsLabel = QLabel('Combinations')
+        self.combinationsLabel.setFont(QFont('Arial', 13, QFont.Bold))
+        self.combinationsLayout.addWidget(self.combinationsLabel)
+        self.combinationsLabel.setAlignment(Qt.AlignHCenter)
+
         self.optionsWidget = QWidget()
+        self.optionsWidget.setMinimumSize(200, 400)
         self.optionsWidget.setObjectName('optionsWidget')
         self.optionsWidget.setStyleSheet('QWidget#optionsWidget{border: 2px solid rgb(150, 150, 150)};')
         self.optionsWidget.setLayout(self.optionsLayout)
-        self.layout.addWidget(self.optionsWidget)
+        self.combinationsLayout.addWidget(self.optionsWidget)
 
+    # Function connected to 'Calculate' button
     def calculateOptions(self):
         self.correct = []
 
@@ -213,11 +263,12 @@ class MathdokuTab(QWidget):
             b.setText(', '.join([str(integer) for integer in i]))
             self.optionsLayout.addWidget(b)
 
+    # Recursion algorithm for finding valid combinations
+    # l is a list of currently checked numbers
     def mathdokuRecurse(self, depth, l):
         for i in range(1, int(self.sizeCombo.currentText()[0]) + 1, 1):
             temp = l.copy()
             temp.append(i)
-
             if depth == 1:
                 m = ''
                 for num in temp:
@@ -230,6 +281,7 @@ class MathdokuTab(QWidget):
                 self.mathdokuRecurse(depth - 1, temp)
 
 
+# Custom subclass for combination buttons
 class ToggleButton(QPushButton):
     def __init__(self):
         super(ToggleButton, self).__init__()
