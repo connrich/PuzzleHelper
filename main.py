@@ -3,6 +3,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import sys
 import math
+from sudoku import Sudoku
 
 
 # Create the main window
@@ -22,10 +23,10 @@ class MainWindow(QMainWindow):
         self.Tabs.setTabBar(self.TabBar)
         self.Tabs.setObjectName('Tabs')
         self.Tabs.setStyleSheet(
-                                'QTabWidget::pane#Tabs > QWidget{background: rgb(200, 200, 200); '
+                                'QTabWidget::pane#Tabs > QWidget{background: rgb(130, 130, 130); '
                                 '                                border: 2px solid white;}'
                                 'QTabWidget QTabBar{border: 2px solid rgb(240, 240, 240);}'
-                                'QTabBar::tab:disabled {width: 120px;' 
+                                'QTabBar::tab:disabled {width: 240px;' 
                                                         'color: transparent;'
                                                         'background: white;}'
                                 )
@@ -49,16 +50,6 @@ class MainWindow(QMainWindow):
         self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
         self.Tabs.setTabEnabled(3, False)
         self.Tabs.addTab(self.closeTab, 'Close X')
-
-    def mousePressEvent(self, event):
-        # Get click position for window dragging
-        self.oldPos = event.globalPos()
-
-    def mouseMoveEvent(self, event):
-        # Window dragging
-        delta = QPoint(event.globalPos() - self.oldPos)
-        self.move(self.x() + delta.x(), self.y() + delta.y())
-        self.oldPos = event.globalPos()
 
 
 # Old subclass for tab widget
@@ -165,13 +156,17 @@ class KillerTab(QWidget):
 
         # Create area to store combinations
         self.optionsWidget = QWidget()
-        self.optionsWidget.setMinimumSize(200, 400)
+        self.optionsWidget.setMinimumSize(240, 500)
         self.optionsWidget.setObjectName('optionsWidget')
-        self.optionsWidget.setStyleSheet('QWidget#optionsWidget{border: 2px solid rgb(150, 150, 150)};')
+        self.optionsWidget.setStyleSheet('QWidget#optionsWidget{'
+                                         '      background-color: white; '
+                                         '      border: 2px solid rgb(150, 150, 150);'
+                                         '};')
         self.optionsLayout = QGridLayout()
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.optionsWidget.setLayout(self.optionsLayout)
         self.combinationsLayout.addWidget(self.optionsWidget)
+
 
     # Function connected to 'Calculate' button
     def calculateOptions(self):
@@ -317,9 +312,12 @@ class MathdokuTab(QWidget):
 
         # Create area to store correct combinations
         self.optionsWidget = QWidget()
-        self.optionsWidget.setMinimumSize(200, 400)
+        self.optionsWidget.setMinimumSize(240, 500)
         self.optionsWidget.setObjectName('optionsWidget')
-        self.optionsWidget.setStyleSheet('QWidget#optionsWidget{border: 2px solid rgb(150, 150, 150)};')
+        self.optionsWidget.setStyleSheet('QWidget#optionsWidget{'
+                                         '      background-color: white; '
+                                         '      border: 2px solid rgb(150, 150, 150);'
+                                         '};')
         self.optionsLayout = QGridLayout()
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.optionsWidget.setLayout(self.optionsLayout)
@@ -376,29 +374,91 @@ class SolverTab(QWidget):
     def __init__(self):
         super(SolverTab, self).__init__()
         self.layout = QHBoxLayout()
-        self.layout.addWidget(SudokuGrid())
         self.setLayout(self.layout)
 
-# TODO
+        puzzle = Sudoku(3)
+        self.sudoku_grid = SudokuGrid(puzzle.board)
+        self.layout.addWidget(self.sudoku_grid)
+
+
 class SudokuGrid(QWidget):
-    def __init__(self):
+    # puzzle is a list of 9 rows, each row is a list of 9 digits
+    def __init__(self, puzzle=None):
         super(SudokuGrid, self).__init__()
+        self.puzzle = puzzle
         self.constructGrid()
+        if self.puzzle is not None:
+            self.populatePuzzle(self.puzzle)
 
     def constructGrid(self):
-        self.layout = QGridLayout()
-        self.setLayout(self.layout)
+        self.grid_layout = QGridLayout()
+        self.setLayout(self.grid_layout)
 
-        cell = Cell(value=1)
-        self.layout.addWidget(cell)
+        # Construct boxes
+        for i in range(3):
+            for j in range(3):
+                box_layout = QGridLayout()
+                box_layout.setSpacing(1)
+                self.grid_layout.addLayout(box_layout, i, j)
 
-# TODO
+        # Fills boxes
+        for i in range(9):
+            for j in range(9):
+                box_layout = self.grid_layout.itemAtPosition(i // 3, j // 3)
+                box_layout.addWidget(Cell(parent=self), i % 3, j % 3)
+
+
+    # Fill puzzle using the template provided
+    def populatePuzzle(self, puzzle):
+        for i, row in enumerate(puzzle):
+            for j, num in enumerate(row):
+                if num is not None:
+                    box = self.grid_layout.itemAtPosition(i // 3, j // 3)
+                    cell = box.itemAtPosition(i % 3, j % 3)
+                    cell.widget().setText(str(num))
+                    cell.widget().static = True # Stops the cell from being overwritten i.e. given number
+
+
 # Label class for setting up sudoku grid
 class Cell(QLabel):
-    def __init__(self, value=None):
+    def __init__(self, value=None, parent=None):
         super(Cell, self).__init__()
+        self.parent = parent
         self.value = value
-        self.setText(str(value))
+        self.static = False
+        if value is not None:
+            self.setText(str(value))
+        self.setAlignment(Qt.AlignCenter)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFixedSize(60, 60)
+
+        self.setFont(QFont('Arial', 15))
+        self.setStyleSheet('QLabel{'
+                           '    background-color: white;'
+                           '    font: bold;'
+                           ' }')
+
+    def isStatic(self):
+        return self.static
+
+    def focusInEvent(self, event):
+        self.setStyleSheet('QLabel{'
+                           '    background-color: rgba(102, 255, 102, 100);'
+                           '    font: bold;'
+                           ' }')
+
+    def focusOutEvent(self, event):
+        self.setStyleSheet('QLabel{'
+                           '    background-color: white;'
+                           '    font: bold;'
+                           ' }')
+
+    # Fills or clears focused cell depending on key stroke
+    def keyPressEvent(self, event):
+        if (event.key() >= Qt.Key_1 and event.key() <= Qt.Key_9) and (not self.isStatic()):
+            self.setText(str(event.key() - Qt.Key_0))
+        elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isStatic()):
+            self.setText('')
 
 
 # Custom subclass for combination buttons
