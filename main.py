@@ -3,6 +3,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import sys
 import math
+import random
 from sudoku import Sudoku
 
 
@@ -23,7 +24,7 @@ class MainWindow(QMainWindow):
         self.Tabs.setTabBar(self.TabBar)
         self.Tabs.setObjectName('Tabs')
         self.Tabs.setStyleSheet(
-                                'QTabWidget::pane#Tabs > QWidget{background: rgb(130, 130, 130); '
+                                'QTabWidget::pane#Tabs > QWidget{background: rgba(0, 180, 180, 50); '
                                 '                                border: 2px solid white;}'
                                 'QTabWidget QTabBar{border: 2px solid rgb(240, 240, 240);}'
                                 'QTabBar::tab:disabled {width: 240px;' 
@@ -127,14 +128,7 @@ class KillerTab(QWidget):
         self.settingLayout.addWidget(self.totalSpin)
 
         # Create button for calculate
-        self.calculateButton = QPushButton('Calculate')
-        self.calculateButton.setStyleSheet('QPushButton{'
-                                           '    background-color: rgb(153, 204, 255);'
-                                           '    font: bold;'
-                                           '}'
-                                           'QPushButton:hover{'
-                                           '    border: 2px solid rgb(20, 20, 20);'
-                                           '}')
+        self.calculateButton = CalculateButton('Calculate')
         self.calculateButton.clicked.connect(self.calculateOptions)
         self.settingLayout.addWidget(self.calculateButton)
 
@@ -277,14 +271,7 @@ class MathdokuTab(QWidget):
         self.settingLayout.addWidget(self.totalSpin)
 
         # Create button for calculate
-        self.calculateButton = QPushButton('Calculate')
-        self.calculateButton.setStyleSheet('QPushButton{'
-                                           '    background-color: rgb(153, 204, 255);'
-                                           '    font: bold;'
-                                           '}'
-                                           'QPushButton:hover{'
-                                           '    border: 2px solid rgb(20, 20, 20);'
-                                           '}')
+        self.calculateButton = CalculateButton('Calculate')
         self.calculateButton.clicked.connect(self.calculateOptions)
         self.settingLayout.addWidget(self.calculateButton)
 
@@ -369,26 +356,40 @@ class MathdokuTab(QWidget):
                 self.mathdokuRecurse(depth - 1, temp)
 
 
-# TODO
 class SolverTab(QWidget):
     def __init__(self):
         super(SolverTab, self).__init__()
-        self.layout = QHBoxLayout()
-        self.setLayout(self.layout)
+        self.solverLayout = QVBoxLayout()
+        self.setLayout(self.solverLayout)
 
         puzzle = Sudoku(3)
-        self.sudoku_grid = SudokuGrid(puzzle.board)
-        self.layout.addWidget(self.sudoku_grid)
+        self.sudokuGrid = SudokuGrid(puzzle.board)
+        self.solverLayout.addWidget(self.sudokuGrid)
+
+        self.randomButton = QPushButton('Random Puzzle')
+        self.randomButton.setStyleSheet('QPushButton{'
+                                        '    font: bold;'
+                                        '}')
+        self.randomButton.clicked.connect(self.generateRandomPuzzle)
+        self.solverLayout.addWidget(self.randomButton)
+
+    def generateRandomPuzzle(self):
+        random.seed()
+        num = random.uniform(0.4, 0.75)
+        puzzle = Sudoku(3, 3, seed=random.randint(0, 9999999999999)).difficulty(num)
+        self.sudokuGrid.populatePuzzle(puzzle.board)
 
 
 class SudokuGrid(QWidget):
     # puzzle is a list of 9 rows, each row is a list of 9 digits
     def __init__(self, puzzle=None):
         super(SudokuGrid, self).__init__()
-        self.puzzle = puzzle
+        self.rows = puzzle
+        self.constructDataStructures()
         self.constructGrid()
-        if self.puzzle is not None:
-            self.populatePuzzle(self.puzzle)
+        if self.rows is not None:
+            self.populatePuzzle(self.rows)
+            self.constructDataStructures()
 
     def constructGrid(self):
         self.grid_layout = QGridLayout()
@@ -401,23 +402,52 @@ class SudokuGrid(QWidget):
                 box_layout.setSpacing(1)
                 self.grid_layout.addLayout(box_layout, i, j)
 
-        # Fills boxes
+        # Construct cells
         for i in range(9):
             for j in range(9):
                 box_layout = self.grid_layout.itemAtPosition(i // 3, j // 3)
                 box_layout.addWidget(Cell(parent=self), i % 3, j % 3)
 
+    # Constructs list of columns and boxes using the list of rows
+    # Will be used to check correctness of cells
+    def constructDataStructures(self):
+        self.cols = []
+        for i in range(9):
+            self.cols.append([])
+            for row in self.rows:
+                self.cols[i].append(row[i])
+
+        self.boxes = []
+        for row in range(0, 7, 3):
+            for col in range(0, 7, 3):
+                temp = []
+                for i in range(row, row+3, 1):
+                    for j in range(col, col+3, 1):
+                        temp.append(self.rows[i][j])
+                self.boxes.append(temp)
 
     # Fill puzzle using the template provided
     def populatePuzzle(self, puzzle):
+        self.rows = puzzle
+        self.constructDataStructures()
         for i, row in enumerate(puzzle):
             for j, num in enumerate(row):
+                cell = self.getCell(i, j)
+                cell.setText('')
+                cell.given = False
                 if num is not None:
-                    box = self.grid_layout.itemAtPosition(i // 3, j // 3)
-                    cell = box.itemAtPosition(i % 3, j % 3)
-                    cell.widget().setText(str(num))
-                    cell.widget().static = True # Stops the cell from being overwritten i.e. given number
+                    cell.setText(str(num))
+                    cell.given = True  # Stops the cell from being overwritten i.e. given number
+                    cell.setStyleSheet('QLabel{'
+                                       '    background-color: white;'
+                                       '    font: bold;'
+                                       '    color: black;'
+                                       ' }')
 
+    # Helper function to get cell object using coordinates
+    def getCell(self, row, col):
+        box = self.grid_layout.itemAtPosition(row // 3, col // 3)
+        return box.itemAtPosition(row % 3, col % 3).widget()
 
 # Label class for setting up sudoku grid
 class Cell(QLabel):
@@ -425,9 +455,11 @@ class Cell(QLabel):
         super(Cell, self).__init__()
         self.parent = parent
         self.value = value
-        self.static = False
+        self.given = False
+        self.notes = []
         if value is not None:
             self.setText(str(value))
+
         self.setAlignment(Qt.AlignCenter)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFixedSize(60, 60)
@@ -436,29 +468,57 @@ class Cell(QLabel):
         self.setStyleSheet('QLabel{'
                            '    background-color: white;'
                            '    font: bold;'
+                           '    color: blue;'
                            ' }')
+        self.setTextFormat(Qt.RichText)
+        self.setWordWrap(True)
+        self.setFont(QFont('Arial', 9))
 
-    def isStatic(self):
-        return self.static
+    def isGiven(self):
+        return self.given
 
     def focusInEvent(self, event):
-        self.setStyleSheet('QLabel{'
-                           '    background-color: rgba(102, 255, 102, 100);'
-                           '    font: bold;'
-                           ' }')
+        if not self.isGiven():
+            self.setStyleSheet('QLabel{'
+                               '    background-color: rgba(120, 120, 120, 100);'
+                               '    font: bold;'
+                               '    color: blue;'
+                               ' }')
 
     def focusOutEvent(self, event):
-        self.setStyleSheet('QLabel{'
-                           '    background-color: white;'
-                           '    font: bold;'
-                           ' }')
+        if not self.isGiven():
+            self.setStyleSheet('QLabel{'
+                               '    background-color: white;'
+                               '    font: bold;'
+                               '    color: blue;'
+                               ' }')
 
     # Fills or clears focused cell depending on key stroke
     def keyPressEvent(self, event):
-        if (event.key() >= Qt.Key_1 and event.key() <= Qt.Key_9) and (not self.isStatic()):
-            self.setText(str(event.key() - Qt.Key_0))
-        elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isStatic()):
+        if (event.key() >= Qt.Key_1 and event.key() <= Qt.Key_9) and (not self.isGiven()):
+            text = self.text() + str(event.key() - Qt.Key_0)
+            text = text.replace('<br>', '')
+            if len(text) > 5:
+                top = text[:5] + ' <br> '
+                bottom = text[5:]
+                text = ''.join((top, bottom))
+            self.setText(text)
+        elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isGiven()):
             self.setText('')
+
+
+class CalculateButton(QPushButton):
+    def __init__(self, label):
+        super(CalculateButton, self).__init__(label)
+        self.setStyleSheet('QPushButton{'
+                                   '    background-color: rgb(100, 100, 100);'
+                                   '    font: bold;'
+                                   '    color: white;'
+                                   '}'
+                                   'QPushButton:hover{'
+                                   '    border: 2px solid rgb(255, 255, 255);'
+                                   '    background-color: rgb(110, 110, 110);'
+                                   '}')
 
 
 # Custom subclass for combination buttons
