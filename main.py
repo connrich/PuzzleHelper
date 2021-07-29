@@ -359,25 +359,71 @@ class MathdokuTab(QWidget):
 class SolverTab(QWidget):
     def __init__(self):
         super(SolverTab, self).__init__()
-        self.solverLayout = QVBoxLayout()
+        self.solverLayout = QGridLayout()
         self.setLayout(self.solverLayout)
 
         puzzle = Sudoku(3)
         self.sudokuGrid = SudokuGrid(puzzle.board)
         self.solverLayout.addWidget(self.sudokuGrid)
 
+        self.buttonLayout = QHBoxLayout()
+        self.solverLayout.addLayout(self.buttonLayout, 1, 0)
+        self.initButtons()
+
+    def initButtons(self):
+        # Create button to toggle edit mode
+        self.noteButton = QPushButton()
+        self.noteButton.setFocusPolicy(Qt.NoFocus)
+        self.noteButton.setCheckable(True)
+        self.noteButton.setChecked(False)
+        self.noteButton.clicked.connect(self.toggleNoteMode)
+        self.setStyleSheet('QPushButton{'
+                           '    background-color: rgb(200, 200, 200);'
+                           '}'
+                           'QPushButton:checked{'
+                           '    background-color: rgb(100, 100, 100);'
+                           '    border: none;'
+                           '}')
+        self.pencilIcon = QIcon('pencil.png')
+        self.noteButton.setIcon(self.pencilIcon)
+        self.noteButton.setFixedSize(self.noteButton.iconSize().grownBy(QMargins(4, 4, 4, 4)))
+        self.buttonLayout.addWidget(self.noteButton)
+
+        # Create button for generating random puzzle
         self.randomButton = QPushButton('Random Puzzle')
         self.randomButton.setStyleSheet('QPushButton{'
                                         '    font: bold;'
                                         '}')
         self.randomButton.clicked.connect(self.generateRandomPuzzle)
-        self.solverLayout.addWidget(self.randomButton)
+        self.buttonLayout.addWidget(self.randomButton)
 
+        # Create button for clearing grid
+        self.clearGridButton = QPushButton('Clear Grid')
+        self.clearGridButton.setStyleSheet('QPushButton{'
+                                        '    font: bold;'
+                                        '}')
+        self.clearGridButton.clicked.connect(self.clearGrid)
+        self.buttonLayout.addWidget(self.clearGridButton)
+
+    # Triggered when noteButton is pushed to update the note mode
+    def toggleNoteMode(self):
+        self.sudokuGrid.noteMode = self.noteButton.isChecked()
+
+    # Generates a random puzzle and populates the grid with it
     def generateRandomPuzzle(self):
         random.seed()
         num = random.uniform(0.4, 0.75)
         puzzle = Sudoku(3, 3, seed=random.randint(0, 9999999999999)).difficulty(num)
-        self.sudokuGrid.populatePuzzle(puzzle.board)
+        self.sudokuGrid.close()
+        self.sudokuGrid = SudokuGrid(puzzle.board)
+        self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
+        self.toggleNoteMode()
+
+    def clearGrid(self):
+        self.sudokuGrid.close()
+        self.sudokuGrid = SudokuGrid()
+        self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
+
 
 
 class SudokuGrid(QWidget):
@@ -385,8 +431,8 @@ class SudokuGrid(QWidget):
     def __init__(self, puzzle=None):
         super(SudokuGrid, self).__init__()
         self.rows = puzzle
-        self.constructDataStructures()
         self.constructGrid()
+        self.noteMode = False
         if self.rows is not None:
             self.populatePuzzle(self.rows)
             self.constructDataStructures()
@@ -405,8 +451,9 @@ class SudokuGrid(QWidget):
         # Construct cells
         for i in range(9):
             for j in range(9):
+                cell = Cell(parent=self)
                 box_layout = self.grid_layout.itemAtPosition(i // 3, j // 3)
-                box_layout.addWidget(Cell(parent=self), i % 3, j % 3)
+                box_layout.addWidget(cell, i % 3, j % 3)
 
     # Constructs list of columns and boxes using the list of rows
     # Will be used to check correctness of cells
@@ -449,6 +496,9 @@ class SudokuGrid(QWidget):
         box = self.grid_layout.itemAtPosition(row // 3, col // 3)
         return box.itemAtPosition(row % 3, col % 3).widget()
 
+    def isNoteModeEnabled(self):
+        return self.noteMode
+
 # Label class for setting up sudoku grid
 class Cell(QLabel):
     def __init__(self, value=None, parent=None):
@@ -472,7 +522,6 @@ class Cell(QLabel):
                            ' }')
         self.setTextFormat(Qt.RichText)
         self.setWordWrap(True)
-        self.setFont(QFont('Arial', 9))
 
     def isGiven(self):
         return self.given
@@ -487,6 +536,7 @@ class Cell(QLabel):
 
     def focusOutEvent(self, event):
         if not self.isGiven():
+            self.parent.currentCell = self
             self.setStyleSheet('QLabel{'
                                '    background-color: white;'
                                '    font: bold;'
@@ -495,16 +545,35 @@ class Cell(QLabel):
 
     # Fills or clears focused cell depending on key stroke
     def keyPressEvent(self, event):
+        # Used to fill cells with a value
         if (event.key() >= Qt.Key_1 and event.key() <= Qt.Key_9) and (not self.isGiven()):
-            text = self.text() + str(event.key() - Qt.Key_0)
-            text = text.replace('<br>', '')
-            if len(text) > 5:
-                top = text[:5] + ' <br> '
-                bottom = text[5:]
-                text = ''.join((top, bottom))
+            if self.parent.isNoteModeEnabled():
+                text = self.constructNoteString(str(event.key() - Qt.Key_0))
+                self.setFont(QFont('Arial', 9))
+            else:
+                text = str(event.key() - Qt.Key_0)
+                if text not in self.notes:
+                    self.notes.append(text)
+                self.setFont(QFont('Arial', 15))
             self.setText(text)
         elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isGiven()):
             self.setText('')
+            if self.parent.isNoteModeEnabled():
+                self.notes.clear()
+
+    # Creates a properly formatted string for the cell
+    def constructNoteString(self, num):
+        if num not in self.notes:
+            self.notes.append(num)
+        else:
+            self.notes.remove(num)
+        note = ''.join(sorted(self.notes))
+        # Puts label on 2 lines if it is too long
+        if len(note) > 5:
+            top = note[:5] + ' <br> '
+            bottom = note[5:]
+            note = ''.join((top, bottom))
+        return note
 
 
 class CalculateButton(QPushButton):
