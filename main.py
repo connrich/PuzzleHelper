@@ -6,6 +6,55 @@ import math
 import random
 from sudoku import Sudoku
 
+# TODO:
+#   Refresh button for combinations widget
+#   Recent searches list
+#   Solve button for Sudoku
+#   Notepad??
+#   Change colour of notes??
+#   Difficulty selection
+#   Toggle buttons size, curved edges and font
+#   Shortcut for calculate using numpad enter
+#   Bigger digits, better colour and nicer font for sudoku
+#   Style buttons on sudoku tab
+#   Arrow key movement for sudoku
+
+
+class AppTheme:
+    action_button_ss = ('QPushButton{'
+                        '    background-color: rgb(130, 130, 130 );'
+                        '    font: bold;'
+                        '    color: white;'
+                        '    border-radius: 5px;'
+                        '    height: 25px;'
+                        '}'
+                        'QPushButton:hover{'
+                        '    border: 2px solid rgb(255, 255, 255);'
+                        '    background-color: rgb(110, 110, 110);'
+                        '}')
+    action_button_font = QFont('yu Gothic Medium', 9, QFont.Bold)
+
+    title_ss = ('QLabel{'
+                '   color: rgb(50, 50, 50);'
+                '}')
+
+    title_label_font = QFont('Yu Gothic Medium', 20, QFont.Bold)
+
+    subtitle_label_font = QFont('yu Gothic Medium', 9, QFont.Bold)
+
+    toggle_button_ss = ('QPushButton{'
+                           '    color: rgb(0, 0, 0);'
+                           '    background-color: rgb(200, 200, 200);'
+                           '    border-radius: 5px;'
+                           '    height: 35px;'
+                           '}'
+                           'QPushButton:checked{'
+                           '    color: rgb(255, 255, 255);'
+                           '    background-color: rgb(120, 120, 120);'
+                           '    border: none;'
+                           '}')
+
+    toggle_button_font = QFont('Yu Gothic Medium', 10, QFont.Bold)
 
 # Create the main window
 class MainWindow(QMainWindow):
@@ -23,18 +72,20 @@ class MainWindow(QMainWindow):
         self.TabBar = TabBar(self)
         self.Tabs.setTabBar(self.TabBar)
         self.Tabs.setObjectName('Tabs')
-        self.Tabs.setStyleSheet(
-                                'QTabWidget::pane#Tabs > QWidget{background: rgba(0, 180, 180, 50); '
-                                '                                border: 2px solid white;}'
+        self.Tabs.setStyleSheet('QTabWidget::pane#Tabs > QWidget{background: lightblue; '
+                                '                                border: 2px solid #C4C4C3;}'
                                 'QTabWidget QTabBar{border: 2px solid rgb(240, 240, 240);}'
-                                'QTabBar::tab:disabled {width: 240px;' 
+                                'QTabBar::tab:disabled {width: 278px;' 
                                                         'color: transparent;'
                                                         'background: white;}'
-                                )
+                                'QTabWidget::tab-bar{left: 1px;}')
         self.setCentralWidget(self.Tabs)
         self.initTabs()
 
         self.show()
+
+        # font, valid = QFontDialog.getFont()
+
 
     # Initializes QWidget subclasses for tabs
     def initTabs(self):
@@ -65,6 +116,19 @@ class TabBar(QTabBar):
     def __init__(self, MainWindow):
         super(TabBar, self).__init__()
         self.MainWindow = MainWindow
+        self.setStyleSheet('QTabBar::tab{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,'
+                                'stop: 0 #E1E1E1, stop: 0.4 #DDDDDD,'
+                                'stop: 0.5 #D8D8D8, stop: 1.0 #D3D3D3);'
+                                'border: 2px solid #C4C4C3;'
+                                'border-bottom-color: #C4C4C3;'
+                                'border-top-left-radius: 4px;'
+                                'border-top-right-radius: 4px;'
+                                'min-width: 8px;'
+                                'padding: 6px;}'
+                           'QTabBar::tab:selected{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,'
+                                'stop: 0 #fafafa, stop: 0.4 #f4f4f4,'
+                                'stop: 0.5 #e7e7e7, stop: 1.0 #fafafa);'
+                                'border-bottom-color: white;}')
 
     def mousePressEvent(self, event):
         # Get click position for window dragging
@@ -106,13 +170,14 @@ class KillerTab(QWidget):
 
         # Top 'Settings' label
         self.settingLabel = QLabel('Settings')
-        self.settingLabel.setStyleSheet('QLabel{font: bold;}')
-        self.settingLabel.setFont(QFont('Arial', 13))
+        # self.settingLabel.setStyleSheet('QLabel{font: bold;}')
+        self.settingLabel.setFont(AppTheme.title_label_font)
         self.settingLabel.setAlignment(Qt.AlignCenter)
         self.settingLayout.addWidget(self.settingLabel)
 
         # Create label and spin box for cage size
         self.cageLabel = QLabel('Cage Size (Max. 9)')
+        self.cageLabel.setFont(AppTheme.subtitle_label_font)
         self.settingLayout.addWidget(self.cageLabel)
         self.cageSpin = QSpinBox()
         self.cageSpin.setMaximum(9)
@@ -121,6 +186,7 @@ class KillerTab(QWidget):
 
         # Create label and spin box for total
         self.totalLabel = QLabel('Sum Total (Max. 45)')
+        self.totalLabel.setFont(AppTheme.subtitle_label_font)
         self.settingLayout.addWidget(self.totalLabel)
         self.totalSpin = QSpinBox()
         self.totalSpin.setMaximum(45)
@@ -132,10 +198,25 @@ class KillerTab(QWidget):
         self.calculateButton.clicked.connect(self.calculateOptions)
         self.settingLayout.addWidget(self.calculateButton)
 
+        # fontLayout = QVBoxLayout()
+        # self.settingLayout.addLayout(fontLayout)
+        # fonts = ['Barlow Condensed', 'Dosis', 'Dosis ExtraBold', 'Yu Gothic Medium', 'Yu Gothic']
+        # for font in fonts:
+        #     f = QFont(font, 20)
+        #     label = QLabel('Settings')
+        #     label.setStyleSheet('QLabel{font: bold;}')
+        #     label.setFont(f)
+        #     fontLayout.addWidget(label)
+
+
+
+
+
     # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
         # Create widget to store valid combinations once calculated
         self.combinationsWidget = QWidget()
+        self.combinationsWidget.setStyleSheet('QWidget{border-radius: 10px;}')
         self.combinationsLayout = QVBoxLayout()
         self.combinationsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.combinationsWidget.setLayout(self.combinationsLayout)
@@ -144,7 +225,7 @@ class KillerTab(QWidget):
 
         # Create label for combinations
         self.combinationsLabel = QLabel('Combinations')
-        self.combinationsLabel.setFont(QFont('Arial', 13, QFont.Bold))
+        self.combinationsLabel.setFont(AppTheme.title_label_font)
         self.combinationsLayout.addWidget(self.combinationsLabel)
         self.combinationsLabel.setAlignment(Qt.AlignHCenter)
 
@@ -161,6 +242,15 @@ class KillerTab(QWidget):
         self.optionsWidget.setLayout(self.optionsLayout)
         self.combinationsLayout.addWidget(self.optionsWidget)
 
+        self.optionsRefreshButton = QPushButton('Refresh')
+        self.optionsRefreshButton.setStyleSheet(AppTheme.action_button_ss)
+        self.optionsRefreshButton.setFont(AppTheme.action_button_font)
+        self.optionsRefreshButton.clicked.connect(self.refreshOptions)
+        self.combinationsLayout.addWidget(self.optionsRefreshButton)
+
+    def refreshOptions(self):
+        for i in range(self.optionsLayout.count()):
+            self.optionsLayout.itemAt(i).widget().setChecked(False)
 
     # Function connected to 'Calculate' button
     def calculateOptions(self):
@@ -310,6 +400,15 @@ class MathdokuTab(QWidget):
         self.optionsWidget.setLayout(self.optionsLayout)
         self.combinationsLayout.addWidget(self.optionsWidget)
 
+        self.optionsRefreshButton = QPushButton('Refresh')
+        self.optionsRefreshButton.setStyleSheet(AppTheme.action_button_ss)
+        self.optionsRefreshButton.clicked.connect(self.refreshOptions)
+        self.combinationsLayout.addWidget(self.optionsRefreshButton)
+
+    def refreshOptions(self):
+        for i in range(self.optionsLayout.count()):
+            self.optionsLayout.itemAt(i).widget().setChecked(False)
+
     # Function connected to 'Calculate' button
     def calculateOptions(self):
         # Stores correct combinations
@@ -373,6 +472,7 @@ class SolverTab(QWidget):
     def initButtons(self):
         # Create button to toggle edit mode
         self.noteButton = QPushButton()
+        self.noteButton.setShortcut(QKeySequence('p'))
         self.noteButton.setFocusPolicy(Qt.NoFocus)
         self.noteButton.setCheckable(True)
         self.noteButton.setChecked(False)
@@ -579,15 +679,9 @@ class Cell(QLabel):
 class CalculateButton(QPushButton):
     def __init__(self, label):
         super(CalculateButton, self).__init__(label)
-        self.setStyleSheet('QPushButton{'
-                                   '    background-color: rgb(100, 100, 100);'
-                                   '    font: bold;'
-                                   '    color: white;'
-                                   '}'
-                                   'QPushButton:hover{'
-                                   '    border: 2px solid rgb(255, 255, 255);'
-                                   '    background-color: rgb(110, 110, 110);'
-                                   '}')
+        self.setShortcut('Return')
+        self.setFont(AppTheme.action_button_font)
+        self.setStyleSheet(AppTheme.action_button_ss)
 
 
 # Custom subclass for combination buttons
@@ -596,15 +690,8 @@ class ToggleButton(QPushButton):
         super(ToggleButton, self).__init__()
         self.setCheckable(True)
         self.setChecked(False)
-        self.setStyleSheet('QPushButton{'
-                           '    color: rgb(0, 0, 0);'
-                           '    background-color: rgb(200, 200, 200);'
-                           '}'
-                           'QPushButton:checked{'
-                           '    color: rgb(255, 255, 255);'
-                           '    background-color: rgb(100, 100, 100);'
-                           '    border: none;'
-                           '}')
+        self.setStyleSheet(AppTheme.toggle_button_ss)
+        self.setFont(AppTheme.toggle_button_font)
 
 
 # Press the green button in the gutter to run the script.
