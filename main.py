@@ -7,17 +7,12 @@ import random
 from sudoku import Sudoku
 
 # TODO:
-#   Refresh button for combinations widget
 #   Recent searches list
 #   Solve button for Sudoku
 #   Notepad??
 #   Change colour of notes??
 #   Difficulty selection
-#   Toggle buttons size, curved edges and font
-#   Shortcut for calculate using numpad enter
-#   Bigger digits, better colour and nicer font for sudoku
-#   Style buttons on sudoku tab
-#   Arrow key movement for sudoku
+#   ActionButton subclass
 
 
 class AppTheme:
@@ -26,12 +21,13 @@ class AppTheme:
                         '    font: bold;'
                         '    color: white;'
                         '    border-radius: 5px;'
-                        '    height: 25px;'
+                        '    height: 30px;'
                         '}'
                         'QPushButton:hover{'
                         '    border: 2px solid rgb(255, 255, 255);'
                         '    background-color: rgb(110, 110, 110);'
                         '}')
+
     action_button_font = QFont('yu Gothic Medium', 9, QFont.Bold)
 
     title_ss = ('QLabel{'
@@ -42,19 +38,57 @@ class AppTheme:
 
     subtitle_label_font = QFont('yu Gothic Medium', 9, QFont.Bold)
 
+    options_widget_ss = ('QWidget#optionsWidget{'
+                         '      background-color: white; '
+                         '      border: 2px solid rgb(150, 150, 150);'
+                         '      border-radius: 10px;'
+                         '};')
+
     toggle_button_ss = ('QPushButton{'
-                           '    color: rgb(0, 0, 0);'
-                           '    background-color: rgb(200, 200, 200);'
-                           '    border-radius: 5px;'
-                           '    height: 35px;'
-                           '}'
-                           'QPushButton:checked{'
-                           '    color: rgb(255, 255, 255);'
-                           '    background-color: rgb(120, 120, 120);'
-                           '    border: none;'
-                           '}')
+                        '    color: rgb(0, 0, 0);'
+                        '    background-color: rgb(200, 200, 200);'
+                        '    border-radius: 5px;'
+                        '    height: 35px;'
+                        '}'
+                        'QPushButton:checked{'
+                        '    color: rgb(255, 255, 255);'
+                        '    background-color: rgb(120, 120, 120);'
+                        '    border: none;'
+                        '}')
 
     toggle_button_font = QFont('Yu Gothic Medium', 10, QFont.Bold)
+
+    given_cell_default_ss = ('QLabel{'
+                             '    background-color: white;'
+                             '    font: bold;'
+                             '    color: black' 
+                             ' }')
+
+    cell_default_ss = ('QLabel{'
+                       '    background-color: white;'
+                       '    font: bold;'
+                       '    color: #0080FF;'
+                       ' }')
+
+    given_cell_focus_in_ss = ('QLabel{'
+                              '    background-color: rgba(120, 120, 120, 100);'
+                              '    font: bold;'
+                              ' }')
+
+    cell_focus_in_ss = ('QLabel{'
+                        '    background-color: rgba(120, 120, 120, 100);'
+                        '    font: bold;'
+                        '    color: #0080FF;'
+                        ' }')
+
+    cell_default_font = QFont('Arial', 20, QFont.Bold)
+
+    cell_note_font = QFont('Arial', 11, QFont.Bold)
+
+    note_button_ss = action_button_ss + 'QPushButton:checked{' \
+                                        '   background-color: rgb(50, 50, 50); ' \
+                                        '   border: 2px solid white;' \
+                                        '}'
 
 # Create the main window
 class MainWindow(QMainWindow):
@@ -209,14 +243,11 @@ class KillerTab(QWidget):
         #     fontLayout.addWidget(label)
 
 
-
-
-
     # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
         # Create widget to store valid combinations once calculated
         self.combinationsWidget = QWidget()
-        self.combinationsWidget.setStyleSheet('QWidget{border-radius: 10px;}')
+        self.combinationsWidget.setStyleSheet(AppTheme.options_widget_ss)
         self.combinationsLayout = QVBoxLayout()
         self.combinationsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.combinationsWidget.setLayout(self.combinationsLayout)
@@ -233,16 +264,13 @@ class KillerTab(QWidget):
         self.optionsWidget = QWidget()
         self.optionsWidget.setMinimumSize(240, 500)
         self.optionsWidget.setObjectName('optionsWidget')
-        self.optionsWidget.setStyleSheet('QWidget#optionsWidget{'
-                                         '      background-color: white; '
-                                         '      border: 2px solid rgb(150, 150, 150);'
-                                         '};')
+        self.optionsWidget.setStyleSheet(AppTheme.options_widget_ss)
         self.optionsLayout = QGridLayout()
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.optionsWidget.setLayout(self.optionsLayout)
         self.combinationsLayout.addWidget(self.optionsWidget)
 
-        self.optionsRefreshButton = QPushButton('Refresh')
+        self.optionsRefreshButton = QPushButton('Clear Selections')
         self.optionsRefreshButton.setStyleSheet(AppTheme.action_button_ss)
         self.optionsRefreshButton.setFont(AppTheme.action_button_font)
         self.optionsRefreshButton.clicked.connect(self.refreshOptions)
@@ -324,13 +352,13 @@ class MathdokuTab(QWidget):
 
         # Create 'Settings' label at top of widget
         self.settingLabel = QLabel('Settings')
-        self.settingLabel.setStyleSheet('QLabel{font: bold;}')
-        self.settingLabel.setFont(QFont('Arial', 13))
+        self.settingLabel.setFont(AppTheme.title_label_font)
         self.settingLabel.setAlignment(Qt.AlignCenter)
         self.settingLayout.addWidget(self.settingLabel)
 
         # Create puzzle size combo box
         self.sizeLabel = QLabel('Puzzle Size')
+        self.sizeLabel.setFont(AppTheme.subtitle_label_font)
         self.settingLayout.addWidget(self.sizeLabel)
         self.sizeCombo = QComboBox()
         self.sizeCombo.addItems(['3x3', '4x4', '5x5', '6x6', '7x7', '8x8', '9x9'])
@@ -339,6 +367,7 @@ class MathdokuTab(QWidget):
 
         # Create cage size label and spin box
         self.cageLabel = QLabel('Cage Size')
+        self.cageLabel.setFont(AppTheme.subtitle_label_font)
         self.settingLayout.addWidget(self.cageLabel)
         self.cageSpin = QSpinBox()
         self.cageSpin.setMaximum(6)
@@ -347,6 +376,7 @@ class MathdokuTab(QWidget):
 
         # Create operation(+, -, /, *) label and combo box
         self.operationLabel = QLabel('Operation Type')
+        self.operationLabel.setFont(AppTheme.subtitle_label_font)
         self.settingLayout.addWidget(self.operationLabel)
         self.operationCombo = QComboBox()
         self.operationCombo.addItems(['+', '-', '/', '*'])
@@ -354,6 +384,7 @@ class MathdokuTab(QWidget):
 
         # Create total lable and spinbox
         self.totalLabel = QLabel('Total')
+        self.totalLabel.setFont(AppTheme.subtitle_label_font)
         self.settingLayout.addWidget(self.totalLabel)
         self.totalSpin = QSpinBox()
         self.totalSpin.setMaximum(120)
@@ -383,7 +414,7 @@ class MathdokuTab(QWidget):
 
         # Create 'Combinations' label
         self.combinationsLabel = QLabel('Combinations')
-        self.combinationsLabel.setFont(QFont('Arial', 13, QFont.Bold))
+        self.combinationsLabel.setFont(AppTheme.title_label_font)
         self.combinationsLayout.addWidget(self.combinationsLabel)
         self.combinationsLabel.setAlignment(Qt.AlignHCenter)
 
@@ -391,17 +422,15 @@ class MathdokuTab(QWidget):
         self.optionsWidget = QWidget()
         self.optionsWidget.setMinimumSize(240, 500)
         self.optionsWidget.setObjectName('optionsWidget')
-        self.optionsWidget.setStyleSheet('QWidget#optionsWidget{'
-                                         '      background-color: white; '
-                                         '      border: 2px solid rgb(150, 150, 150);'
-                                         '};')
+        self.optionsWidget.setStyleSheet(AppTheme.options_widget_ss)
         self.optionsLayout = QGridLayout()
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.optionsWidget.setLayout(self.optionsLayout)
         self.combinationsLayout.addWidget(self.optionsWidget)
 
-        self.optionsRefreshButton = QPushButton('Refresh')
+        self.optionsRefreshButton = QPushButton('Clear Selections')
         self.optionsRefreshButton.setStyleSheet(AppTheme.action_button_ss)
+        self.optionsRefreshButton.setFont(AppTheme.action_button_font)
         self.optionsRefreshButton.clicked.connect(self.refreshOptions)
         self.combinationsLayout.addWidget(self.optionsRefreshButton)
 
@@ -477,13 +506,7 @@ class SolverTab(QWidget):
         self.noteButton.setCheckable(True)
         self.noteButton.setChecked(False)
         self.noteButton.clicked.connect(self.toggleNoteMode)
-        self.setStyleSheet('QPushButton{'
-                           '    background-color: rgb(200, 200, 200);'
-                           '}'
-                           'QPushButton:checked{'
-                           '    background-color: rgb(100, 100, 100);'
-                           '    border: none;'
-                           '}')
+        self.setStyleSheet(AppTheme.note_button_ss)
         self.pencilIcon = QIcon('pencil.png')
         self.noteButton.setIcon(self.pencilIcon)
         self.noteButton.setFixedSize(self.noteButton.iconSize().grownBy(QMargins(4, 4, 4, 4)))
@@ -491,17 +514,15 @@ class SolverTab(QWidget):
 
         # Create button for generating random puzzle
         self.randomButton = QPushButton('Random Puzzle')
-        self.randomButton.setStyleSheet('QPushButton{'
-                                        '    font: bold;'
-                                        '}')
+        self.randomButton.setStyleSheet(AppTheme.action_button_ss)
+        self.randomButton.setFont(AppTheme.action_button_font)
         self.randomButton.clicked.connect(self.generateRandomPuzzle)
         self.buttonLayout.addWidget(self.randomButton)
 
         # Create button for clearing grid
         self.clearGridButton = QPushButton('Clear Grid')
-        self.clearGridButton.setStyleSheet('QPushButton{'
-                                        '    font: bold;'
-                                        '}')
+        self.clearGridButton.setStyleSheet(AppTheme.action_button_ss)
+        self.clearGridButton.setFont(AppTheme.action_button_font)
         self.clearGridButton.clicked.connect(self.clearGrid)
         self.buttonLayout.addWidget(self.clearGridButton)
 
@@ -523,7 +544,6 @@ class SolverTab(QWidget):
         self.sudokuGrid.close()
         self.sudokuGrid = SudokuGrid()
         self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
-
 
 
 class SudokuGrid(QWidget):
@@ -551,7 +571,7 @@ class SudokuGrid(QWidget):
         # Construct cells
         for i in range(9):
             for j in range(9):
-                cell = Cell(parent=self)
+                cell = Cell(parent=self, coords=(i, j))
                 box_layout = self.grid_layout.itemAtPosition(i // 3, j // 3)
                 box_layout.addWidget(cell, i % 3, j % 3)
 
@@ -596,14 +616,41 @@ class SudokuGrid(QWidget):
         box = self.grid_layout.itemAtPosition(row // 3, col // 3)
         return box.itemAtPosition(row % 3, col % 3).widget()
 
+    # Function for navigating sudoku grid with arrow keys
+    def arrowMove(self, coords, move):
+        # coords = (row, column) where row 0 is top row and column 0 is left column
+        if move == 'Left':
+            if coords[1] == 0:
+                self.getCell(coords[0], 8).setFocus()
+            else:
+                self.getCell(coords[0], coords[1]-1).setFocus()
+        elif move == 'Right':
+            if coords[1] == 8:
+                self.getCell(coords[0], 0).setFocus()
+            else:
+                self.getCell(coords[0], coords[1]+1).setFocus()
+        elif move == 'Up':
+            if coords[0] == 0:
+                self.getCell(8, coords[1]).setFocus()
+            else:
+                self.getCell(coords[0]-1, coords[1]).setFocus()
+        elif move == 'Down':
+            if coords[0] == 8:
+                self.getCell(0, coords[1]).setFocus()
+            else:
+                self.getCell(coords[0]+1, coords[1]).setFocus()
+
+
+
     def isNoteModeEnabled(self):
         return self.noteMode
 
 # Label class for setting up sudoku grid
 class Cell(QLabel):
-    def __init__(self, value=None, parent=None):
+    def __init__(self, value=None, parent=None, coords=None):
         super(Cell, self).__init__()
         self.parent = parent
+        self.coords = coords
         self.value = value
         self.given = False
         self.notes = []
@@ -614,12 +661,8 @@ class Cell(QLabel):
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFixedSize(60, 60)
 
-        self.setFont(QFont('Arial', 15))
-        self.setStyleSheet('QLabel{'
-                           '    background-color: white;'
-                           '    font: bold;'
-                           '    color: blue;'
-                           ' }')
+        self.setFont(AppTheme.cell_default_font)
+        self.setStyleSheet(AppTheme.cell_default_ss)
         self.setTextFormat(Qt.RichText)
         self.setWordWrap(True)
 
@@ -627,39 +670,43 @@ class Cell(QLabel):
         return self.given
 
     def focusInEvent(self, event):
-        if not self.isGiven():
-            self.setStyleSheet('QLabel{'
-                               '    background-color: rgba(120, 120, 120, 100);'
-                               '    font: bold;'
-                               '    color: blue;'
-                               ' }')
+        if self.isGiven():
+            self.setStyleSheet(AppTheme.given_cell_focus_in_ss)
+        else:
+            self.setStyleSheet(AppTheme.cell_focus_in_ss)
 
     def focusOutEvent(self, event):
-        if not self.isGiven():
-            self.parent.currentCell = self
-            self.setStyleSheet('QLabel{'
-                               '    background-color: white;'
-                               '    font: bold;'
-                               '    color: blue;'
-                               ' }')
+        self.parent.currentCell = self
+        if self.isGiven():
+            self.setStyleSheet(AppTheme.given_cell_default_ss)
+        else:
+            self.setStyleSheet(AppTheme.cell_default_ss)
 
     # Fills or clears focused cell depending on key stroke
     def keyPressEvent(self, event):
         # Used to fill cells with a value
         if (event.key() >= Qt.Key_1 and event.key() <= Qt.Key_9) and (not self.isGiven()):
+            # Sets notes in the cell
             if self.parent.isNoteModeEnabled():
                 text = self.constructNoteString(str(event.key() - Qt.Key_0))
-                self.setFont(QFont('Arial', 9))
+                self.setFont(AppTheme.cell_note_font)
+            # Sets number in the cell
             else:
                 text = str(event.key() - Qt.Key_0)
                 if text not in self.notes:
                     self.notes.append(text)
-                self.setFont(QFont('Arial', 15))
+                self.setFont(AppTheme.cell_default_font)
             self.setText(text)
+        # Used to clear a cell
         elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isGiven()):
             self.setText('')
             if self.parent.isNoteModeEnabled():
                 self.notes.clear()
+        # Used for cell navigation with arrow keys
+        elif (event.key() >= Qt.Key_Left and event.key() <= Qt.Key_Down):
+            # Pass coords of current cell and a string containing the move
+            self.parent.arrowMove(self.coords, QKeySequence(event.key()).toString())
+
 
     # Creates a properly formatted string for the cell
     def constructNoteString(self, num):
@@ -669,9 +716,10 @@ class Cell(QLabel):
             self.notes.remove(num)
         note = ''.join(sorted(self.notes))
         # Puts label on 2 lines if it is too long
-        if len(note) > 5:
-            top = note[:5] + ' <br> '
-            bottom = note[5:]
+        l = len(note)
+        if l > 5:
+            top = note[:-(-l//2)] + ' <br> '
+            bottom = note[-(-l//2):]
             note = ''.join((top, bottom))
         return note
 
