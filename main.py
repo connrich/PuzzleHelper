@@ -7,12 +7,12 @@ import random
 from sudoku import Sudoku
 
 # TODO:
-#   Recent searches list
 #   Solve button for Sudoku
 #   Notepad??
 #   Change colour of notes??
 #   Difficulty selection
-#   ActionButton subclass
+#   Highlight wrong cells
+#   Update function for data structures when cells are changed
 
 
 class AppTheme:
@@ -230,18 +230,51 @@ class KillerTab(QWidget):
         # Create button for calculate
         self.calculateButton = CalculateButton('Calculate')
         self.calculateButton.clicked.connect(self.calculateOptions)
+        self.calculateButton.clicked.connect(self.logSearch)
         self.settingLayout.addWidget(self.calculateButton)
 
-        # fontLayout = QVBoxLayout()
-        # self.settingLayout.addLayout(fontLayout)
-        # fonts = ['Barlow Condensed', 'Dosis', 'Dosis ExtraBold', 'Yu Gothic Medium', 'Yu Gothic']
-        # for font in fonts:
-        #     f = QFont(font, 20)
-        #     label = QLabel('Settings')
-        #     label.setStyleSheet('QLabel{font: bold;}')
-        #     label.setFont(f)
-        #     fontLayout.addWidget(label)
+        # Create label for recent searches
+        self.recentLabel = QLabel('Recent Searches')
+        self.recentLabel.setAlignment(Qt.AlignHCenter)
+        self.recentLabel.setFont(AppTheme.title_label_font)
+        self.settingLayout.addWidget(self.recentLabel)
 
+        # Create widget to store recent searches
+        self.recentWidget = QWidget()
+        self.recentWidget.setMinimumHeight(350)
+        self.recentWidget.setObjectName('optionsWidget')  # Needed to use stylesheet
+        self.recentWidget.setStyleSheet(AppTheme.options_widget_ss)
+        self.recentLayout = QVBoxLayout()
+        self.recentLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.recentLayout.setDirection(QBoxLayout.BottomToTop)
+        self.recentWidget.setLayout(self.recentLayout)
+        self.settingLayout.addWidget(self.recentWidget)
+
+    # Adds a push button to recent search area with the current setting info
+    def logSearch(self):
+        if self.recentLayout.count() >= 9:
+            self.recentLayout.takeAt(0)
+
+        button = QPushButton(self.getSettingsString())
+        button.setMinimumWidth(240)
+        button.setFont(AppTheme.action_button_font)
+        button.setStyleSheet(AppTheme.action_button_ss)
+        button.clicked.connect(lambda: self.populateSettings(button.text()))
+        self.recentLayout.addWidget(button)
+
+    # Returns a formatted string of the current info in the settings
+    def getSettingsString(self):
+        info_list = []
+        info_list.append(str(self.cageSpin.value()))
+        info_list.append(str(self.totalSpin.value()))
+        return '           '.join(info_list)
+
+    # Populates the combo boxes and spin boxes in settings with the recent search info
+    def populateSettings(self, settings):
+        l = settings.split('           ')
+        self.cageSpin.setValue(int(l[0]))
+        self.totalSpin.setValue(int(l[1]))
+        self.calculateOptions()
 
     # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
@@ -309,7 +342,9 @@ class KillerTab(QWidget):
                 self.optionsLayout.addWidget(b)
             self.optionsLayout.setAlignment(Qt.AlignTop)
         else:
-            self.optionsLayout.addWidget(QLabel('No valid options'))
+            label = QLabel('No valid options')
+            label.setFont(AppTheme.subtitle_label_font)
+            self.optionsLayout.addWidget(label)
             self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
     # Recursion algorithm for finding valid combinations
@@ -394,13 +429,61 @@ class MathdokuTab(QWidget):
         # Create button for calculate
         self.calculateButton = CalculateButton('Calculate')
         self.calculateButton.clicked.connect(self.calculateOptions)
+        self.calculateButton.clicked.connect(self.logSearch)
         self.settingLayout.addWidget(self.calculateButton)
+
+        # Create label for recent searches
+        self.recentLabel = QLabel('Recent Searches')
+        self.recentLabel.setAlignment(Qt.AlignHCenter)
+        self.recentLabel.setFont(AppTheme.title_label_font)
+        self.settingLayout.addWidget(self.recentLabel)
+
+        # Create widget to store recent searches
+        self.recentWidget = QWidget()
+        self.recentWidget.setMinimumHeight(240)
+        self.recentWidget.setObjectName('optionsWidget')  # Needed to use stylesheet
+        self.recentWidget.setStyleSheet(AppTheme.options_widget_ss)
+        self.recentLayout = QVBoxLayout()
+        self.recentLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.recentLayout.setDirection(QBoxLayout.BottomToTop)
+        self.recentWidget.setLayout(self.recentLayout)
+        self.settingLayout.addWidget(self.recentWidget)
 
     # Adjusts the settings to reflect the puzzle size when it is changed
     def adjustSettings(self):
         val = int(self.sizeCombo.currentText()[0])
         self.cageSpin.setMaximum(val)
         self.totalSpin.setMaximum(math.factorial(val))
+
+    # Adds a push button to recent search area with the current setting info
+    def logSearch(self):
+        if self.recentLayout.count() >= 6:
+            self.recentLayout.takeAt(0)
+
+        button = QPushButton(self.getSettingsString())
+        button.setMinimumWidth(240)
+        button.setFont(AppTheme.action_button_font)
+        button.setStyleSheet(AppTheme.action_button_ss)
+        button.clicked.connect(lambda: self.populateSettings(button.text()))
+        self.recentLayout.addWidget(button)
+
+    # Returns a formatted string of the current info in the settings
+    def getSettingsString(self):
+        info_list = []
+        info_list.append(self.sizeCombo.currentText())
+        info_list.append(str(self.cageSpin.value()))
+        info_list.append(self.operationCombo.currentText())
+        info_list.append(str(self.totalSpin.value()))
+        return '      '.join(info_list)
+
+    # Populates the combo boxes and spin boxes in settings with the recent search info
+    def populateSettings(self, settings):
+        l = settings.split('      ')
+        self.sizeCombo.setCurrentText(l[0])
+        self.cageSpin.setValue(int(l[1]))
+        self.operationCombo.setCurrentText(l[2])
+        self.totalSpin.setValue(int(l[3]))
+        self.calculateOptions()
 
     # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
@@ -428,6 +511,7 @@ class MathdokuTab(QWidget):
         self.optionsWidget.setLayout(self.optionsLayout)
         self.combinationsLayout.addWidget(self.optionsWidget)
 
+        # Create button to clear currently selected buttons
         self.optionsRefreshButton = QPushButton('Clear Selections')
         self.optionsRefreshButton.setStyleSheet(AppTheme.action_button_ss)
         self.optionsRefreshButton.setFont(AppTheme.action_button_font)
@@ -461,7 +545,9 @@ class MathdokuTab(QWidget):
                 self.optionsLayout.addWidget(b)
             self.optionsLayout.setAlignment(Qt.AlignTop)
         else:
-            self.optionsLayout.addWidget(QLabel('No valid options'))
+            label = QLabel('No valid options')
+            label.setFont(AppTheme.subtitle_label_font)
+            self.optionsLayout.addWidget(label)
             self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
     # Recursion algorithm for finding valid combinations
@@ -727,7 +813,10 @@ class Cell(QLabel):
 class CalculateButton(QPushButton):
     def __init__(self, label):
         super(CalculateButton, self).__init__(label)
-        self.setShortcut('Return')
+        # Set keyboard shortcuts
+        for seq in ['Return', 'Enter']:
+            shortcut = QShortcut(seq, self)
+            shortcut.activated.connect(self.animateClick)
         self.setFont(AppTheme.action_button_font)
         self.setStyleSheet(AppTheme.action_button_ss)
 
