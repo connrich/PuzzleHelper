@@ -7,7 +7,6 @@ import random
 from sudoku import Sudoku
 
 # TODO:
-#   Solve button for Sudoku
 #   Notepad??
 #   Change colour of notes??
 #   Difficulty selection
@@ -16,8 +15,23 @@ from sudoku import Sudoku
 
 
 class AppTheme:
+    tabs_ss = ('QTabWidget::pane#Tabs > QWidget{' 
+               '    background: lightblue;'
+               '    border: 2px solid #C4C4C3;'
+               '}'
+               'QTabWidget QTabBar{'
+               '    border: 2px solid rgb(240, 240, 240);'
+               '}'
+               'QTabBar::tab:disabled {'
+               '    width: 229px;' 
+               '    color: transparent;'
+               '    background: white;}'
+               'QTabWidget::tab-bar{'
+               '    left: 1px;'
+               '}')
+
     action_button_ss = ('QPushButton{'
-                        '    background-color: rgb(130, 130, 130 );'
+                        '    background-color: rgb(130, 130, 130);'
                         '    font: bold;'
                         '    color: white;'
                         '    border-radius: 5px;'
@@ -106,13 +120,7 @@ class MainWindow(QMainWindow):
         self.TabBar = TabBar(self)
         self.Tabs.setTabBar(self.TabBar)
         self.Tabs.setObjectName('Tabs')
-        self.Tabs.setStyleSheet('QTabWidget::pane#Tabs > QWidget{background: lightblue; '
-                                '                                border: 2px solid #C4C4C3;}'
-                                'QTabWidget QTabBar{border: 2px solid rgb(240, 240, 240);}'
-                                'QTabBar::tab:disabled {width: 278px;' 
-                                                        'color: transparent;'
-                                                        'background: white;}'
-                                'QTabWidget::tab-bar{left: 1px;}')
+        self.Tabs.setStyleSheet(AppTheme.tabs_ss)
         self.setCentralWidget(self.Tabs)
         self.initTabs()
 
@@ -126,15 +134,17 @@ class MainWindow(QMainWindow):
         self.killerTab = KillerTab()
         self.mathdokuTab = MathdokuTab()
         self.solverTab = SolverTab()
+        self.notesTab = QTextEdit()
         self.spacerTab = QWidget()
         self.closeTab = QWidget()
 
         self.Tabs.addTab(self.killerTab, 'Killer Sudoku')
         self.Tabs.addTab(self.mathdokuTab, 'Mathdoku')
         self.Tabs.addTab(self.solverTab, 'Sudoku Solver')
+        self.Tabs.addTab(self.notesTab, 'Notes')
         # Add disabled spacing tab for alignment (made transparent in QTabWidget style sheet)
         self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
-        self.Tabs.setTabEnabled(3, False)
+        self.Tabs.setTabEnabled(4, False)
         self.Tabs.addTab(self.closeTab, 'Close X')
 
 
@@ -612,6 +622,13 @@ class SolverTab(QWidget):
         self.clearGridButton.clicked.connect(self.clearGrid)
         self.buttonLayout.addWidget(self.clearGridButton)
 
+        # Create button for solving current grid
+        self.solveGridButton = QPushButton('Solve')
+        self.solveGridButton.setStyleSheet(AppTheme.action_button_ss)
+        self.solveGridButton.setFont(AppTheme.action_button_font)
+        self.solveGridButton.clicked.connect(self.sudokuGrid.solveCurrentGrid)
+        self.buttonLayout.addWidget(self.solveGridButton)
+
     # Triggered when noteButton is pushed to update the note mode
     def toggleNoteMode(self):
         self.sudokuGrid.noteMode = self.noteButton.isChecked()
@@ -619,10 +636,11 @@ class SolverTab(QWidget):
     # Generates a random puzzle and populates the grid with it
     def generateRandomPuzzle(self):
         random.seed()
-        num = random.uniform(0.4, 0.75)
+        num = random.uniform(0.4, 0.7)
         puzzle = Sudoku(3, 3, seed=random.randint(0, 9999999999999)).difficulty(num)
         self.sudokuGrid.close()
         self.sudokuGrid = SudokuGrid(puzzle.board)
+        self.solveGridButton.clicked.connect(self.sudokuGrid.solveCurrentGrid)
         self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
         self.toggleNoteMode()
 
@@ -630,6 +648,14 @@ class SolverTab(QWidget):
         self.sudokuGrid.close()
         self.sudokuGrid = SudokuGrid()
         self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
+
+
+#TODO button to open font dialog for font control
+#   add QTextEdit
+#   Implement in tab init
+class NotesTab(QWidget):
+    def __init__(self):
+        super(NotesTab, self).__init__()
 
 
 class SudokuGrid(QWidget):
@@ -679,6 +705,13 @@ class SudokuGrid(QWidget):
                         temp.append(self.rows[i][j])
                 self.boxes.append(temp)
 
+    # Called to update data structures when a cell value is changed
+    def updateDataStructures(self, value, coords):
+        row, col = coords
+        self.rows[row][col] = value
+        self.cols[col][row] = value
+        self.boxes[(row // 3) * 3 + (col // 3)][(row%3) * 3 + (col%3)] = value
+
     # Fill puzzle using the template provided
     def populatePuzzle(self, puzzle):
         self.rows = puzzle
@@ -691,11 +724,8 @@ class SudokuGrid(QWidget):
                 if num is not None:
                     cell.setText(str(num))
                     cell.given = True  # Stops the cell from being overwritten i.e. given number
-                    cell.setStyleSheet('QLabel{'
-                                       '    background-color: white;'
-                                       '    font: bold;'
-                                       '    color: black;'
-                                       ' }')
+                    cell.setStyleSheet(AppTheme.given_cell_default_ss)
+                    cell.setFont(AppTheme.cell_default_font)
 
     # Helper function to get cell object using coordinates
     def getCell(self, row, col):
@@ -726,6 +756,39 @@ class SudokuGrid(QWidget):
             else:
                 self.getCell(coords[0]+1, coords[1]).setFocus()
 
+    def solveCurrentGrid(self):
+        # Checks validity of the current grid before passing it to solver
+        valid = True
+        for row in self.rows:
+            row = [i for i in row if i is not None]
+            if len(row) != len(set(row)):
+                valid = False
+                break
+        if valid:
+            for col in self.cols:
+                col = [i for i in col if i is not None]
+                if len(col) != len(set(col)):
+                    valid = False
+                    break
+            if valid:
+                for box in self.boxes:
+                    box = [i for i in box if i is not None]
+                    if len(box) != len(set(box)):
+                        valid = False
+                        break
+
+        # Solve if valid or display dialog box if invalid
+        if valid:
+            puzzle = Sudoku(3, 3, board=self.rows).solve()
+            puzzle.show()
+            self.populatePuzzle(puzzle.solve().board)
+            puzzle.solve().show_full()
+        else:
+            dialog = QMessageBox()
+            dialog.setWindowIcon(QIcon('puzzle_pieces.jpg'))
+            dialog.setWindowTitle('Invalid')
+            dialog.setText('Invalid Puzzle/No Solution')
+            dialog.exec()
 
 
     def isNoteModeEnabled(self):
@@ -776,18 +839,21 @@ class Cell(QLabel):
             if self.parent.isNoteModeEnabled():
                 text = self.constructNoteString(str(event.key() - Qt.Key_0))
                 self.setFont(AppTheme.cell_note_font)
+                self.parent.updateDataStructures(None, self.coords)
             # Sets number in the cell
             else:
                 text = str(event.key() - Qt.Key_0)
                 if text not in self.notes:
                     self.notes.append(text)
                 self.setFont(AppTheme.cell_default_font)
+                self.parent.updateDataStructures(int(text), self.coords)
             self.setText(text)
         # Used to clear a cell
         elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isGiven()):
             self.setText('')
             if self.parent.isNoteModeEnabled():
                 self.notes.clear()
+            self.parent.updateDataStructures(None, self.coords)
         # Used for cell navigation with arrow keys
         elif (event.key() >= Qt.Key_Left and event.key() <= Qt.Key_Down):
             # Pass coords of current cell and a string containing the move
