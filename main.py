@@ -11,7 +11,6 @@ from sudoku import Sudoku
 #   Change colour of notes??
 #   Difficulty selection
 #   Highlight wrong cells
-#   Update function for data structures when cells are changed
 
 
 class AppTheme:
@@ -23,7 +22,7 @@ class AppTheme:
                '    border: 2px solid rgb(240, 240, 240);'
                '}'
                'QTabBar::tab:disabled {'
-               '    width: 229px;' 
+               '    width: 152px;' 
                '    color: transparent;'
                '    background: white;}'
                'QTabWidget::tab-bar{'
@@ -104,6 +103,9 @@ class AppTheme:
                                         '   border: 2px solid white;' \
                                         '}'
 
+    default_note_tab_font = QFont('Yu Gothic Medium', 15, QFont.Bold)
+
+
 # Create the main window
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -134,17 +136,19 @@ class MainWindow(QMainWindow):
         self.killerTab = KillerTab()
         self.mathdokuTab = MathdokuTab()
         self.solverTab = SolverTab()
-        self.notesTab = QTextEdit()
+        self.crosswordTab = CrosswordTab()
+        self.notesTab = NotesTab()
         self.spacerTab = QWidget()
         self.closeTab = QWidget()
 
         self.Tabs.addTab(self.killerTab, 'Killer Sudoku')
         self.Tabs.addTab(self.mathdokuTab, 'Mathdoku')
         self.Tabs.addTab(self.solverTab, 'Sudoku Solver')
+        self.Tabs.addTab(self.crosswordTab, 'Crossword')
         self.Tabs.addTab(self.notesTab, 'Notes')
         # Add disabled spacing tab for alignment (made transparent in QTabWidget style sheet)
         self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
-        self.Tabs.setTabEnabled(4, False)
+        self.Tabs.setTabEnabled(5, False)
         self.Tabs.addTab(self.closeTab, 'Close X')
 
 
@@ -650,12 +654,107 @@ class SolverTab(QWidget):
         self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
 
 
-#TODO button to open font dialog for font control
-#   add QTextEdit
-#   Implement in tab init
+class CrosswordTab(QWidget):
+    def __init__(self):
+        super(CrosswordTab, self).__init__()
+
+        # Loads the dictionary of words sorted by length
+        self.lengthDictionary = self.loadLengthDictionary()
+
+        # Master layout
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+        self.layout.setAlignment(Qt.AlignTop)
+
+        # Sets a label for search bar
+        self.searchLabel = QLabel('Search: ')
+        self.searchLabel.setFont(AppTheme.subtitle_label_font)
+        self.layout.addWidget(self.searchLabel, 0, 0)
+
+        # Search bar for word entry
+        self.searchLineEdit = QLineEdit()
+        font = QFont('yu Gothic Medium', 12, QFont.Bold)
+        font.setLetterSpacing(QFont.PercentageSpacing, 115)
+        self.searchLineEdit.setFont(font)
+        self.layout.addWidget(self.searchLineEdit, 0, 1)
+
+        # Search button for generating the list of potential words
+        self.searchButton = QPushButton('Search')
+        self.searchButton.setStyleSheet(AppTheme.action_button_ss)
+        self.searchButton.setFont(AppTheme.action_button_font)
+        self.searchButton.clicked.connect(self.populateWordList)
+        self.searchButton.setShortcut(QKeySequence('Return'))
+        self.layout.addWidget(self.searchButton, 0, 2)
+
+        # List to store all potential words
+        self.wordList = QListWidget()
+        self.wordList.setFont(AppTheme.default_note_tab_font)
+        self.layout.addWidget(self.wordList, 1, 0, 1, 0)
+
+    def populateWordList(self):
+        # Get current text that was entered
+        given_word = self.searchLineEdit.text().lower()
+
+        # Gets list of letters and their location within the word
+        indexed_letters = [(char, index) for index, char in enumerate(given_word) if char.isalpha()]
+
+        # Iterates through the list stored at the appropriate length key
+        # If the word has letters in matching locations it appends it to possible_words
+        possible_words = []
+        for word in self.lengthDictionary[len(given_word)]:
+            for letter, index in indexed_letters:
+                if word[index] != letter:
+                    break
+            else:
+                possible_words.append(word)
+
+        # Refresh the list with all current potential words
+        self.wordList.clear()
+        self.wordList.addItems(possible_words)
+
+    def loadLengthDictionary(self):
+        # Opens dictionary file and parses into a dictionary with word length as the key
+        # length_dict[2] = ['am', 'be', 'do']
+        with open('words_alpha.txt') as word_file:
+            valid_words = list(word_file.read().split())
+            length_dict = {length: [] for length in range(1, 46, 1)}
+            for word in valid_words:
+                length_dict[len(word)].append(word)
+        del valid_words
+        return length_dict
+
+
 class NotesTab(QWidget):
     def __init__(self):
         super(NotesTab, self).__init__()
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+
+        # Add button to open font dialog
+        self.fontButton = QPushButton('Select Font')
+        self.fontButton.setStyleSheet(AppTheme.action_button_ss)
+        self.fontButton.setFont(AppTheme.action_button_font)
+        self.fontButton.clicked.connect(self.changeFont)
+        self.layout.addWidget(self.fontButton, 1, 0)
+
+        # Add text edit for notes area
+        self.notesTextEdit = QTextEdit()
+        self.notesTextEdit.setFont(AppTheme.default_note_tab_font)
+        self.layout.addWidget(self.notesTextEdit, 0, 0, 1, 0)
+
+        # Add button to clear all notes
+        self.clearButton = QPushButton('Clear Notes')
+        self.clearButton.setStyleSheet(AppTheme.action_button_ss)
+        self.clearButton.setFont(AppTheme.action_button_font)
+        self.clearButton.clicked.connect(self.notesTextEdit.clear)
+        self.layout.addWidget(self.clearButton, 1, 1)
+
+
+    def changeFont(self):
+        font, ok = QFontDialog.getFont(self.notesTextEdit.font())
+        if ok:
+            self.notesTextEdit.setFont(font)
+        # self.notesTextEdit.setFont(QFontDialog.getFont())
 
 
 class SudokuGrid(QWidget):
@@ -667,7 +766,9 @@ class SudokuGrid(QWidget):
         self.noteMode = False
         if self.rows is not None:
             self.populatePuzzle(self.rows)
-            self.constructDataStructures()
+        else:
+            self.rows = [[0 for _ in range(9)] for _ in range(9)]
+        self.constructDataStructures()
 
     def constructGrid(self):
         self.grid_layout = QGridLayout()
@@ -780,9 +881,7 @@ class SudokuGrid(QWidget):
         # Solve if valid or display dialog box if invalid
         if valid:
             puzzle = Sudoku(3, 3, board=self.rows).solve()
-            puzzle.show()
             self.populatePuzzle(puzzle.solve().board)
-            puzzle.solve().show_full()
         else:
             dialog = QMessageBox()
             dialog.setWindowIcon(QIcon('puzzle_pieces.jpg'))
@@ -790,9 +889,9 @@ class SudokuGrid(QWidget):
             dialog.setText('Invalid Puzzle/No Solution')
             dialog.exec()
 
-
     def isNoteModeEnabled(self):
         return self.noteMode
+
 
 # Label class for setting up sudoku grid
 class Cell(QLabel):
@@ -897,9 +996,44 @@ class ToggleButton(QPushButton):
         self.setFont(AppTheme.toggle_button_font)
 
 
+def get_words_by_length():
+    with open('words_alpha.txt') as word_file:
+        valid_words = list(word_file.read().split())
+        length_dict = {length: [] for length in range(1, 46, 1)}
+        for word in valid_words:
+            length_dict[len(word)].append(word)
+    return length_dict
+
+
+def dictionary_testing():
+    import time
+    start = time.time()
+
+    # Gets English words and stores them in a dictionary where key is the length of the words
+    words_by_length = get_words_by_length()
+
+    # Gets a word from the user and finds the locations of the given letters
+    test_word = "_p__h____"
+    indexed_letters = [(char, index) for index, char in enumerate(test_word) if char.isalpha()]
+
+    # Iterates through the list stored at the appropriate length key
+    # If the word has letters in matching locations it appends it to a list
+    possible_words = []
+    for word in words_by_length[len(test_word)]:
+        for letter, index in indexed_letters:
+            if word[index] != letter:
+                break
+        else:
+            possible_words.append(word)
+    print(possible_words)
+
+    print('time: ', time.time() - start)
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     MainWindow = MainWindow()
     sys.exit(app.exec_())
 
+    # dictionary_testing()
