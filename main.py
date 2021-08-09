@@ -1,13 +1,21 @@
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+from sudoku import Sudoku
 import sys
 import math
 import random
-from sudoku import Sudoku
+import json
+import requests
+from collections import Counter
+
+dictionary_api_url = 'https://api.dictionaryapi.dev/api/v2/entries/en_US/'
 
 # TODO:
-#   Notepad??
+#   Refactor lengthDictionary for less memory use
+#   MirriamWebster backup api
+#   Calculation thread for killer/mathdoku recursion
+#   Definition widget html formatting
 #   Change colour of notes??
 #   Difficulty selection
 #   Highlight wrong cells
@@ -22,7 +30,7 @@ class AppTheme:
                '    border: 2px solid rgb(240, 240, 240);'
                '}'
                'QTabBar::tab:disabled {'
-               '    width: 152px;' 
+               '    width: 78px;' 
                '    color: transparent;'
                '    background: white;}'
                'QTabWidget::tab-bar{'
@@ -105,6 +113,8 @@ class AppTheme:
 
     default_note_tab_font = QFont('Yu Gothic Medium', 15, QFont.Bold)
 
+    definition_font = QFont('Yu Gothic Medium', 13, QFont.Bold)
+
 
 # Create the main window
 class MainWindow(QMainWindow):
@@ -137,6 +147,7 @@ class MainWindow(QMainWindow):
         self.mathdokuTab = MathdokuTab()
         self.solverTab = SolverTab()
         self.crosswordTab = CrosswordTab()
+        self.anagramTab = AnagramTab()
         self.notesTab = NotesTab()
         self.spacerTab = QWidget()
         self.closeTab = QWidget()
@@ -145,10 +156,11 @@ class MainWindow(QMainWindow):
         self.Tabs.addTab(self.mathdokuTab, 'Mathdoku')
         self.Tabs.addTab(self.solverTab, 'Sudoku Solver')
         self.Tabs.addTab(self.crosswordTab, 'Crossword')
+        self.Tabs.addTab(self.anagramTab, 'Anagrams')
         self.Tabs.addTab(self.notesTab, 'Notes')
         # Add disabled spacing tab for alignment (made transparent in QTabWidget style sheet)
         self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
-        self.Tabs.setTabEnabled(5, False)
+        self.Tabs.setTabEnabled(6, False)
         self.Tabs.addTab(self.closeTab, 'Close X')
 
 
@@ -686,10 +698,26 @@ class CrosswordTab(QWidget):
         self.searchButton.setShortcut(QKeySequence('Return'))
         self.layout.addWidget(self.searchButton, 0, 2)
 
-        # List to store all potential words
+        # Sets label to inform user of search syntax
+        self.searchSyntaxLabel = QLabel('Use any symbol to denote a space/blank square (i.e. testing = t!s_in#)')
+        self.searchSyntaxLabel.setFont(AppTheme.subtitle_label_font)
+        self.layout.addWidget(self.searchSyntaxLabel, 1, 0, 1, 0, Qt.AlignCenter)
+
+        # Create horizontal layout for potential words/definition area
+        self.mainLayout = QHBoxLayout()
+        self.layout.addLayout(self.mainLayout, 2, 0, 1, 0)
+
+        # List widget to store all potential words
         self.wordList = QListWidget()
+        self.wordList.setMaximumWidth(210)
         self.wordList.setFont(AppTheme.default_note_tab_font)
-        self.layout.addWidget(self.wordList, 1, 0, 1, 0)
+        self.wordList.itemClicked.connect(self.getApiDefinition)
+        self.mainLayout.addWidget(self.wordList)
+
+        # Widget to display definiton and information about a word
+        self.definitionWidget = QTextEdit()
+        self.definitionWidget.setReadOnly(True)
+        self.mainLayout.addWidget(self.definitionWidget)
 
     def populateWordList(self):
         # Get current text that was entered
@@ -710,7 +738,17 @@ class CrosswordTab(QWidget):
 
         # Refresh the list with all current potential words
         self.wordList.clear()
-        self.wordList.addItems(possible_words)
+        if possible_words:
+            self.wordList.setEnabled(True)
+            self.wordList.addItems(possible_words)
+        else:
+            # Display message if no valid words were found
+            self.wordList.setEnabled(False)
+            none_found = ['', 'No', 'matching', 'words', 'found']
+            for word in none_found:
+                item = QListWidgetItem(word)
+                item.setTextAlignment(Qt.AlignHCenter)
+                self.wordList.addItem(item)
 
     def loadLengthDictionary(self):
         # Opens dictionary file and parses into a dictionary with word length as the key
@@ -722,6 +760,104 @@ class CrosswordTab(QWidget):
                 length_dict[len(word)].append(word)
         del valid_words
         return length_dict
+
+    def getApiDefinition(self, list_item):
+        self.setDefinitionWidgetLoading()
+
+        word = list_item.text()
+        url = dictionary_api_url + word
+
+        self.apiThread = ApiThread(self.requestDefinition, self.populateDefinitionWidget, url)
+
+    # Sets the definition widget to loading state
+    def setDefinitionWidgetLoading(self):
+        # Set widget to 'loading...'
+        self.definitionWidget.setText('Loading...')
+        self.definitionWidget.setFont(AppTheme.title_label_font)
+        self.definitionWidget.setAlignment(Qt.AlignCenter)
+
+    # Used with apiThread to get the definition using http request
+    def requestDefinition(self, url):
+        request_definition = requests.get(url)
+        return request_definition.json()
+
+    # Called once the defintion request is fulfilled. Used to fill the definition widget with the defintion information.
+    def populateDefinitionWidget(self, def_json):
+        print('request data: ')
+        print(json.dumps(def_json, indent=4, sort_keys=True))
+
+        formatted_definiton_html = self.formatDefinitionJson(def_json)
+        self.definitionWidget.setHtml(formatted_definiton_html)
+        self.definitionWidget.setFont(AppTheme.definition_font)
+        self.definitionWidget.setAlignment(Qt.AlignLeft)
+
+    # Returns a formatted html string which is used to populate the definitions widget
+    def formatDefinitionJson(self, def_json):
+        formatted_html = ''
+        for word_info in def_json:
+            kwargs = {}
+            kwargs['word'] = word_info['word']
+            kwargs['phonetic'] = word_info['phonetic']
+            html = self.word_info_html.format(**kwargs)
+
+            for meaning in word_info['meanings']:
+                kwargs = {}
+                kwargs['word_type'] = meaning['partOfSpeech']
+                for definition in meaning['definitions']:
+                    kwargs['definition'] = definition['definition']
+                    kwargs['synonyms'] = definition['synonyms']
+                    html = html + self.meaning_html.format(**kwargs)
+            print(word_info.keys())
+            formatted_html = formatted_html + html
+        return formatted_html
+
+    word_info_html = (
+                        '<header>'
+                        '   <h1>{word}</h1>'
+                        '   <span>({phonetic})<span>'
+                        '</header>'
+                        )
+
+    meaning_html = (
+                    '<div>'
+                    '   <h3>Definition</h3>'
+                    '   <p>{word_type} - {definition}</p>'
+                    '   <h3>Synonyms</h3>'
+                    '   <p>{synonyms}</p>'
+                    '</div>'
+                    )
+
+
+class AnagramTab(CrosswordTab):
+    def __init__(self):
+        super(AnagramTab, self).__init__()
+        self.searchSyntaxLabel.deleteLater()
+
+    def populateWordList(self):
+        given_word = self.searchLineEdit.text()
+        letter_freq = Counter(given_word)
+
+        # Finds words with the same amount of letters using collections.Counter
+        # 'but' == 'tub' because each has one b, one u, and one t
+        anagrams = []
+        for word in self.lengthDictionary[len(given_word)]:
+            if Counter(word) == letter_freq:
+                anagrams.append(word)
+
+        # Refresh the list with all current potential words
+        self.wordList.clear()
+        if anagrams:
+            anagrams.remove(given_word)  # Remove the word itself from the list
+            self.wordList.setEnabled(True)
+            self.wordList.addItems(anagrams)
+        else:
+            # Display message if no valid words were found
+            self.wordList.setEnabled(False)
+            none_found = ['', 'No', 'matching', 'words', 'found']
+            for word in none_found:
+                item = QListWidgetItem(word)
+                item.setTextAlignment(Qt.AlignHCenter)
+                self.wordList.addItem(item)
 
 
 class NotesTab(QWidget):
@@ -996,6 +1132,28 @@ class ToggleButton(QPushButton):
         self.setFont(AppTheme.toggle_button_font)
 
 
+# Thread for sending API requests
+class ApiThread(QThread):
+    finished = pyqtSignal(list)
+
+    # Pass in the request function, the function to call when finished, and the full api url
+    def __init__(self, func, on_finish, url):
+        super(ApiThread, self).__init__()
+        self.func = func
+        self.finished.connect(on_finish)
+        self.url = url
+        self.start()
+
+    def run(self):
+        try:
+            result = self.func(self.url)
+        except Exception as e:
+            print('exception in thread is %s' % e)
+            result = [e]
+        finally:
+            self.finished.emit(result)
+
+
 def get_words_by_length():
     with open('words_alpha.txt') as word_file:
         valid_words = list(word_file.read().split())
@@ -1004,6 +1162,22 @@ def get_words_by_length():
             length_dict[len(word)].append(word)
     return length_dict
 
+def anagram_testing():
+    import time
+    start = time.time()
+
+    words_by_length = get_words_by_length()
+
+    test_word = 'counter'
+    letter_freq = Counter(test_word)
+
+    anagrams = []
+    for word in words_by_length[len(test_word)]:
+        if Counter(word) == letter_freq:
+            anagrams.append(word)
+
+    print(anagrams)
+    print('time: ', time.time()-start)
 
 def dictionary_testing():
     import time
@@ -1036,4 +1210,5 @@ if __name__ == '__main__':
     MainWindow = MainWindow()
     sys.exit(app.exec_())
 
+    # anagram_testing()
     # dictionary_testing()
