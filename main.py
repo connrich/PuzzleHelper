@@ -12,11 +12,9 @@ from collections import Counter
 dictionary_api_url = 'https://api.dictionaryapi.dev/api/v2/entries/en_US/'
 
 # TODO:
-#   Refactor lengthDictionary for less memory use
 #   MirriamWebster backup api
 #   Calculation thread for killer/mathdoku recursion
 #   Definition widget html formatting
-#   Change colour of notes??
 #   Difficulty selection
 #   Highlight wrong cells
 
@@ -143,11 +141,20 @@ class MainWindow(QMainWindow):
 
     # Initializes QWidget subclasses for tabs
     def initTabs(self):
+        # Opens dictionary file and parses into a dictionary with word length as the key
+        # length_dict[2] = ['am', 'be', 'do']
+        with open('words_alpha.txt') as word_file:
+            valid_words = list(word_file.read().split())
+            self.length_dict = {length: [] for length in range(1, 46, 1)}
+            for word in valid_words:
+                self.length_dict[len(word)].append(word)
+        del valid_words
+
         self.killerTab = KillerTab()
         self.mathdokuTab = MathdokuTab()
         self.solverTab = SolverTab()
-        self.crosswordTab = CrosswordTab()
-        self.anagramTab = AnagramTab()
+        self.crosswordTab = CrosswordTab(self.length_dict)
+        self.anagramTab = AnagramTab(self.length_dict)
         self.notesTab = NotesTab()
         self.spacerTab = QWidget()
         self.closeTab = QWidget()
@@ -667,11 +674,11 @@ class SolverTab(QWidget):
 
 
 class CrosswordTab(QWidget):
-    def __init__(self):
+    def __init__(self, length_dict):
         super(CrosswordTab, self).__init__()
 
         # Loads the dictionary of words sorted by length
-        self.lengthDictionary = self.loadLengthDictionary()
+        self.lengthDictionary = length_dict
 
         # Master layout
         self.layout = QGridLayout()
@@ -750,17 +757,6 @@ class CrosswordTab(QWidget):
                 item.setTextAlignment(Qt.AlignHCenter)
                 self.wordList.addItem(item)
 
-    def loadLengthDictionary(self):
-        # Opens dictionary file and parses into a dictionary with word length as the key
-        # length_dict[2] = ['am', 'be', 'do']
-        with open('words_alpha.txt') as word_file:
-            valid_words = list(word_file.read().split())
-            length_dict = {length: [] for length in range(1, 46, 1)}
-            for word in valid_words:
-                length_dict[len(word)].append(word)
-        del valid_words
-        return length_dict
-
     def getApiDefinition(self, list_item):
         self.setDefinitionWidgetLoading()
 
@@ -783,6 +779,10 @@ class CrosswordTab(QWidget):
 
     # Called once the defintion request is fulfilled. Used to fill the definition widget with the defintion information.
     def populateDefinitionWidget(self, def_json):
+        if def_json[0] == 'Connection Error':
+            self.definitionWidget.setText(def_json[0])
+            self.definitionWidget.setAlignment(Qt.AlignCenter)
+            return
         print('request data: ')
         print(json.dumps(def_json, indent=4, sort_keys=True))
 
@@ -805,7 +805,7 @@ class CrosswordTab(QWidget):
                 kwargs['word_type'] = meaning['partOfSpeech']
                 for definition in meaning['definitions']:
                     kwargs['definition'] = definition['definition']
-                    kwargs['synonyms'] = definition['synonyms']
+                    kwargs['synonyms'] = ', '.join(definition['synonyms']) if definition['synonyms'] else 'None found'
                     html = html + self.meaning_html.format(**kwargs)
             print(word_info.keys())
             formatted_html = formatted_html + html
@@ -829,8 +829,8 @@ class CrosswordTab(QWidget):
 
 
 class AnagramTab(CrosswordTab):
-    def __init__(self):
-        super(AnagramTab, self).__init__()
+    def __init__(self, length_dict):
+        super(AnagramTab, self).__init__(length_dict)
         self.searchSyntaxLabel.deleteLater()
 
     def populateWordList(self):
@@ -844,10 +844,13 @@ class AnagramTab(CrosswordTab):
             if Counter(word) == letter_freq:
                 anagrams.append(word)
 
+        # Remove the word itself from the list
+        if given_word in anagrams:
+            anagrams.remove(given_word)
+
         # Refresh the list with all current potential words
         self.wordList.clear()
         if anagrams:
-            anagrams.remove(given_word)  # Remove the word itself from the list
             self.wordList.setEnabled(True)
             self.wordList.addItems(anagrams)
         else:
@@ -994,28 +997,8 @@ class SudokuGrid(QWidget):
                 self.getCell(coords[0]+1, coords[1]).setFocus()
 
     def solveCurrentGrid(self):
-        # Checks validity of the current grid before passing it to solver
-        valid = True
-        for row in self.rows:
-            row = [i for i in row if i is not None]
-            if len(row) != len(set(row)):
-                valid = False
-                break
-        if valid:
-            for col in self.cols:
-                col = [i for i in col if i is not None]
-                if len(col) != len(set(col)):
-                    valid = False
-                    break
-            if valid:
-                for box in self.boxes:
-                    box = [i for i in box if i is not None]
-                    if len(box) != len(set(box)):
-                        valid = False
-                        break
-
         # Solve if valid or display dialog box if invalid
-        if valid:
+        if self.isValid():
             puzzle = Sudoku(3, 3, board=self.rows).solve()
             self.populatePuzzle(puzzle.solve().board)
         else:
@@ -1028,6 +1011,21 @@ class SudokuGrid(QWidget):
     def isNoteModeEnabled(self):
         return self.noteMode
 
+    def isValid(self):
+        # Checks validity of the current grid
+        for row in self.rows:
+            row = [i for i in row if i is not None]
+            if len(row) != len(set(row)):
+                return False
+        for col in self.cols:
+            col = [i for i in col if i is not None]
+            if len(col) != len(set(col)):
+                return False
+        for box in self.boxes:
+            box = [i for i in box if i is not None]
+            if len(box) != len(set(box)):
+                return False
+        return True
 
 # Label class for setting up sudoku grid
 class Cell(QLabel):
@@ -1149,59 +1147,9 @@ class ApiThread(QThread):
             result = self.func(self.url)
         except Exception as e:
             print('exception in thread is %s' % e)
-            result = [e]
+            result = ['Connection Error', e]
         finally:
             self.finished.emit(result)
-
-
-def get_words_by_length():
-    with open('words_alpha.txt') as word_file:
-        valid_words = list(word_file.read().split())
-        length_dict = {length: [] for length in range(1, 46, 1)}
-        for word in valid_words:
-            length_dict[len(word)].append(word)
-    return length_dict
-
-def anagram_testing():
-    import time
-    start = time.time()
-
-    words_by_length = get_words_by_length()
-
-    test_word = 'counter'
-    letter_freq = Counter(test_word)
-
-    anagrams = []
-    for word in words_by_length[len(test_word)]:
-        if Counter(word) == letter_freq:
-            anagrams.append(word)
-
-    print(anagrams)
-    print('time: ', time.time()-start)
-
-def dictionary_testing():
-    import time
-    start = time.time()
-
-    # Gets English words and stores them in a dictionary where key is the length of the words
-    words_by_length = get_words_by_length()
-
-    # Gets a word from the user and finds the locations of the given letters
-    test_word = "_p__h____"
-    indexed_letters = [(char, index) for index, char in enumerate(test_word) if char.isalpha()]
-
-    # Iterates through the list stored at the appropriate length key
-    # If the word has letters in matching locations it appends it to a list
-    possible_words = []
-    for word in words_by_length[len(test_word)]:
-        for letter, index in indexed_letters:
-            if word[index] != letter:
-                break
-        else:
-            possible_words.append(word)
-    print(possible_words)
-
-    print('time: ', time.time() - start)
 
 
 # Press the green button in the gutter to run the script.
@@ -1209,6 +1157,3 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     MainWindow = MainWindow()
     sys.exit(app.exec_())
-
-    # anagram_testing()
-    # dictionary_testing()
