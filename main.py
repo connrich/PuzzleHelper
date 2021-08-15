@@ -16,7 +16,7 @@ dictionary_api_url = 'https://api.dictionaryapi.dev/api/v2/entries/en_US/'
 #   Calculation thread for killer/mathdoku recursion
 #   Definition widget html formatting
 #   Difficulty selection
-#   Highlight wrong cells
+#   Proper fix for requests.get() exceptions -> maybe rework ApiThread for better readability
 
 
 class AppTheme:
@@ -88,6 +88,18 @@ class AppTheme:
                        '    font: bold;'
                        '    color: #0080FF;'
                        ' }')
+
+    invalid_cell_ss = ('QLabel{'
+                       '    background-color: rgba(255, 0 , 0, 100);'
+                       '    font: bold;'
+                       '    color: #0080FF;'
+                       ' }')
+
+    invalid_given_cell_ss = ('QLabel{'
+                             '    background-color: rgba(255, 0 , 0, 100);'
+                             '    font: bold;'
+                             '    color: #000000;'
+                             ' }')
 
     given_cell_focus_in_ss = ('QLabel{'
                               '    background-color: rgba(120, 120, 120, 100);'
@@ -262,7 +274,7 @@ class KillerTab(QWidget):
 
         # Create button for calculate
         self.calculateButton = CalculateButton('Calculate')
-        self.calculateButton.clicked.connect(self.calculateOptions)
+        self.calculateButton.clicked.connect(self.getOptions)
         self.calculateButton.clicked.connect(self.logSearch)
         self.settingLayout.addWidget(self.calculateButton)
 
@@ -292,7 +304,7 @@ class KillerTab(QWidget):
         button.setMinimumWidth(240)
         button.setFont(AppTheme.action_button_font)
         button.setStyleSheet(AppTheme.action_button_ss)
-        button.clicked.connect(lambda: self.populateSettings(button.text()))
+        button.clicked.connect(lambda: self.calcualteAgain(button.text()))
         self.recentLayout.addWidget(button)
 
     # Returns a formatted string of the current info in the settings
@@ -303,11 +315,11 @@ class KillerTab(QWidget):
         return '           '.join(info_list)
 
     # Populates the combo boxes and spin boxes in settings with the recent search info
-    def populateSettings(self, settings):
+    def calcualteAgain(self, settings):
         l = settings.split('           ')
         self.cageSpin.setValue(int(l[0]))
         self.totalSpin.setValue(int(l[1]))
-        self.calculateOptions()
+        self.getOptions()
 
     # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
@@ -342,60 +354,83 @@ class KillerTab(QWidget):
         self.optionsRefreshButton.clicked.connect(self.refreshOptions)
         self.combinationsLayout.addWidget(self.optionsRefreshButton)
 
+    # Clears currently selected options
     def refreshOptions(self):
         for i in range(self.optionsLayout.count()):
             self.optionsLayout.itemAt(i).widget().setChecked(False)
 
-    # Function connected to 'Calculate' button
-    def calculateOptions(self):
-        # Stores valid options
-        self.correct = []
-        self.total = self.totalSpin.value()
+    # Called when calculate button is clicked
+    def getOptions(self):
+        # Clears all currently displayed options
+        for i in reversed(range(self.optionsLayout.count())):
+            self.optionsLayout.itemAt(i).widget().setParent(None)
+
+        # Set widget to display 'Loading...'
+        self.optionsLayout.addWidget(QLabel('Loading...', font=AppTheme.subtitle_label_font))
+        self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+
+        # Set calculate button to loading
+        self.calculateButton.setDisabled(True)
+        self.calculateButton.setText('Loading...')
+
+        # Start thread
+        target = (self.cageSpin.value(), self.totalSpin.value())
+        self.calculationThread = CalculationThread(self.calculateOptions, self.populateOptions, target)
+
+    # Function passed to CalculationThread for finding valid options
+    def calculateOptions(self, target):
+        cage_size, total = target
+        valid_options = []
+
+        # Recursion algorithm for finding valid combinations
+        # l is a list of currently checked numbers
+        def killerRecursion(depth, l):
+            for i in range(1, 10, 1):
+                # Check if number is already in current cage
+                if i not in l:
+                    temp = l.copy()
+                    temp.append(i)
+                    if depth == 1:
+                        # Check if full cage equals desired total
+                        if sum(temp) == total:
+                            # Check if option is already in correct list
+                            if sorted(temp) not in valid_options:
+                                valid_options.append(sorted(temp))
+                    else:
+                        killerRecursion(depth - 1, temp)
 
         # Checks edge cases for improved performance
-        sum_check = sum([i for i in range(1, self.cageSpin.value() + 1, 1)])
-        if (self.totalSpin.value() >= sum_check) and (self.totalSpin.value() >= self.cageSpin.value()):
-            if self.cageSpin.value() == 9 and self.totalSpin.value() == 45:
-                self.correct = [[i for i in range(1, 10, 1)]]
+        sum_check = sum([i for i in range(1, cage_size + 1, 1)])
+        if (total >= sum_check) and (total >= cage_size):
+            if cage_size == 9 and total == 45:
+                valid_options = [[i for i in range(1, 10, 1)]]
             else:
                 # Begins recursion for finding correct cage combinations
-                depth = self.cageSpin.value()
                 for i in range(1, 10, 1):
-                    self.KillerRecursion(depth, [])
+                    killerRecursion(cage_size, [])
+        return valid_options
+
+    # Called when CalculationThread finishes to populate the widget with the valid options
+    def populateOptions(self, valid_options):
+        # Renable calculate button
+        self.calculateButton.setDisabled(False)
+        self.calculateButton.setText('Calculate')
 
         # Clears all currently displayed options
         for i in reversed(range(self.optionsLayout.count())):
             self.optionsLayout.itemAt(i).widget().setParent(None)
 
         # Display valid options or 'No valid options'
-        if self.correct:
-            for i in self.correct:
+        if valid_options:
+            for i in valid_options:
                 b = ToggleButton()
                 b.setText(', '.join([str(integer) for integer in i]))
                 self.optionsLayout.addWidget(b)
             self.optionsLayout.setAlignment(Qt.AlignTop)
         else:
-            label = QLabel('No valid options')
-            label.setFont(AppTheme.subtitle_label_font)
+            label = QLabel('No valid options', font=AppTheme.subtitle_label_font)
             self.optionsLayout.addWidget(label)
             self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
-
-    # Recursion algorithm for finding valid combinations
-    # l is a list of currently checked numbers
-    def KillerRecursion(self, depth, l):
-        for i in range(1, 10, 1):
-            # Check if number is already in current cage
-            if i not in l:
-                temp = l.copy()
-                temp.append(i)
-                if depth == 1:
-                    # Check if full cage equals desired total
-                    if sum(temp) == self.total:
-                        # Check if option is already in correct list
-                        if sorted(temp) not in self.correct:
-                            self.correct.append(sorted(temp))
-                else:
-                    self.KillerRecursion(depth - 1, temp)
 
 
 # Custom subclass for mathdoku tab
@@ -461,7 +496,7 @@ class MathdokuTab(QWidget):
 
         # Create button for calculate
         self.calculateButton = CalculateButton('Calculate')
-        self.calculateButton.clicked.connect(self.calculateOptions)
+        self.calculateButton.clicked.connect(self.getOptions)
         self.calculateButton.clicked.connect(self.logSearch)
         self.settingLayout.addWidget(self.calculateButton)
 
@@ -497,7 +532,7 @@ class MathdokuTab(QWidget):
         button.setMinimumWidth(240)
         button.setFont(AppTheme.action_button_font)
         button.setStyleSheet(AppTheme.action_button_ss)
-        button.clicked.connect(lambda: self.populateSettings(button.text()))
+        button.clicked.connect(lambda: self.calcualteAgain(button.text()))
         self.recentLayout.addWidget(button)
 
     # Returns a formatted string of the current info in the settings
@@ -510,13 +545,13 @@ class MathdokuTab(QWidget):
         return '      '.join(info_list)
 
     # Populates the combo boxes and spin boxes in settings with the recent search info
-    def populateSettings(self, settings):
+    def calcualteAgain(self, settings):
         l = settings.split('      ')
         self.sizeCombo.setCurrentText(l[0])
         self.cageSpin.setValue(int(l[1]))
         self.operationCombo.setCurrentText(l[2])
         self.totalSpin.setValue(int(l[3]))
-        self.calculateOptions()
+        self.getOptions()
 
     # Function to construct area where options will be populated after 'Calculate' is pressed
     def initOptionsWidget(self):
@@ -551,56 +586,79 @@ class MathdokuTab(QWidget):
         self.optionsRefreshButton.clicked.connect(self.refreshOptions)
         self.combinationsLayout.addWidget(self.optionsRefreshButton)
 
+    # Clear currently selected options
     def refreshOptions(self):
         for i in range(self.optionsLayout.count()):
             self.optionsLayout.itemAt(i).widget().setChecked(False)
 
-    # Function connected to 'Calculate' button
-    def calculateOptions(self):
+    def getOptions(self):
+        # Clears all currently displayed options
+        for i in reversed(range(self.optionsLayout.count())):
+            self.optionsLayout.itemAt(i).widget().setParent(None)
+
+        # Set widget to display 'Loading...'
+        self.optionsLayout.addWidget(QLabel('Loading...', font=AppTheme.subtitle_label_font))
+        self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+
+        # Set calculate button to loading
+        self.calculateButton.setDisabled(True)
+        self.calculateButton.setText('Loading...')
+
+        target = (self.sizeCombo.currentText(), self.cageSpin.value(), self.operationCombo.currentText(), self.totalSpin.value())
+        self.calculationThread = CalculationThread(self.calculateOptions, self.populateOptions, target)
+
+    # Funtion passed to calculation thread to get valid options
+    def calculateOptions(self, target):
         # Stores correct combinations
-        self.correct = []
-        self.operation = self.operationCombo.currentText()
-        self.total = self.totalSpin.value()
+        valid_options = []
+        puzzle_size, cage_size, operation, total = target
+
+        # Recursion algorithm for finding valid combinations
+        # l is a list of currently checked numbers
+        def mathdokuRecurse(depth, l):
+            for i in range(1, int(puzzle_size[0]) + 1, 1):
+                temp = l.copy()
+                temp.append(i)
+                if depth == 1:
+                    m = ''
+                    # Calculates cage total using the corresponding operation
+                    for num in temp:
+                        m = m + str(num) + operation
+                    m = m[:-1]
+                    if eval(m) == total:
+                        # Checks if current cage is already in list
+                        if sorted(temp) not in valid_options:
+                            valid_options.append(sorted(temp))
+                else:
+                    mathdokuRecurse(depth - 1, temp)
 
         # Starts recursion
-        for i in range(1, int(self.sizeCombo.currentText()[0]) + 1, 1):
-            self.mathdokuRecurse(self.cageSpin.value() - 1, [i])
+        for i in range(1, int(puzzle_size[0]) + 1, 1):
+            print('recurse')
+            mathdokuRecurse(cage_size - 1, [i])
+
+        return valid_options
+
+    def populateOptions(self, valid_options):
+        # Renable calculate button
+        self.calculateButton.setDisabled(False)
+        self.calculateButton.setText('Calculate')
 
         # Clears current layout
         for i in reversed(range(self.optionsLayout.count())):
             self.optionsLayout.itemAt(i).widget().setParent(None)
 
         # Populates correct options or displays 'No valid options' if there are none
-        if self.correct:
-            for i in self.correct:
+        if valid_options:
+            for i in valid_options:
                 b = ToggleButton()
                 b.setText(', '.join([str(integer) for integer in i]))
                 self.optionsLayout.addWidget(b)
             self.optionsLayout.setAlignment(Qt.AlignTop)
         else:
-            label = QLabel('No valid options')
-            label.setFont(AppTheme.subtitle_label_font)
+            label = QLabel('No valid options', font=AppTheme.subtitle_label_font)
             self.optionsLayout.addWidget(label)
             self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
-
-    # Recursion algorithm for finding valid combinations
-    # l is a list of currently checked numbers
-    def mathdokuRecurse(self, depth, l):
-        for i in range(1, int(self.sizeCombo.currentText()[0]) + 1, 1):
-            temp = l.copy()
-            temp.append(i)
-            if depth == 1:
-                m = ''
-                # Calculates cage total using the corresponding operation
-                for num in temp:
-                    m = m + str(num) + self.operation
-                m = m[:-1]
-                if eval(m) == self.total:
-                    # Checks if current cage is already in list
-                    if sorted(temp) not in self.correct:
-                        self.correct.append(sorted(temp))
-            else:
-                self.mathdokuRecurse(depth - 1, temp)
 
 
 class SolverTab(QWidget):
@@ -609,8 +667,7 @@ class SolverTab(QWidget):
         self.solverLayout = QGridLayout()
         self.setLayout(self.solverLayout)
 
-        puzzle = Sudoku(3)
-        self.sudokuGrid = SudokuGrid(puzzle.board)
+        self.sudokuGrid = SudokuGrid()
         self.solverLayout.addWidget(self.sudokuGrid)
 
         self.buttonLayout = QHBoxLayout()
@@ -726,6 +783,7 @@ class CrosswordTab(QWidget):
         self.definitionWidget.setReadOnly(True)
         self.mainLayout.addWidget(self.definitionWidget)
 
+    # Called when a word is searched to find possible words and add them to the list widget
     def populateWordList(self):
         # Get current text that was entered
         given_word = self.searchLineEdit.text().lower()
@@ -757,17 +815,18 @@ class CrosswordTab(QWidget):
                 item.setTextAlignment(Qt.AlignHCenter)
                 self.wordList.addItem(item)
 
+    # Called when a word is clicked in the list widget
     def getApiDefinition(self, list_item):
         self.setDefinitionWidgetLoading()
 
         word = list_item.text()
         url = dictionary_api_url + word
 
+        # Start thread and pass it the request function, th function to call on completion and the url
         self.apiThread = ApiThread(self.requestDefinition, self.populateDefinitionWidget, url)
 
     # Sets the definition widget to loading state
     def setDefinitionWidgetLoading(self):
-        # Set widget to 'loading...'
         self.definitionWidget.setText('Loading...')
         self.definitionWidget.setFont(AppTheme.title_label_font)
         self.definitionWidget.setAlignment(Qt.AlignCenter)
@@ -903,10 +962,12 @@ class SudokuGrid(QWidget):
         self.rows = puzzle
         self.constructGrid()
         self.noteMode = False
+        self.invalid_cells = []
         if self.rows is not None:
             self.populatePuzzle(self.rows)
         else:
-            self.rows = [[0 for _ in range(9)] for _ in range(9)]
+            self.rows = [[None for _ in range(9)] for _ in range(9)]
+            self.populatePuzzle(self.rows)
         self.constructDataStructures()
 
     def constructGrid(self):
@@ -952,10 +1013,77 @@ class SudokuGrid(QWidget):
         self.cols[col][row] = value
         self.boxes[(row // 3) * 3 + (col // 3)][(row%3) * 3 + (col%3)] = value
 
+        self.evaluateInvalidCells()
+
+    def evaluateInvalidCells(self):
+        # Clear stylesheet for invalid cells
+        for row, col in self.invalid_cells:
+            cell = self.getCell(row, col)
+            cell.valid = True
+            if cell.isGiven():
+                if cell.hasFocus():
+                    cell.setStyleSheet(AppTheme.given_cell_focus_in_ss)
+                else:
+                    cell.setStyleSheet(AppTheme.given_cell_default_ss)
+            else:
+                if cell.hasFocus():
+                    cell.setStyleSheet(AppTheme.cell_focus_in_ss)
+                else:
+                    cell.setStyleSheet(AppTheme.cell_default_ss)
+
+        self.invalid_cells = self.getInvalidCells()
+
+        for row, col in self.invalid_cells:
+            cell = self.getCell(row, col)
+            cell.valid = False
+            if cell.isGiven():
+                cell.setStyleSheet(AppTheme.invalid_given_cell_ss)
+            else:
+                cell.setStyleSheet(AppTheme.invalid_cell_ss)
+
+    # Returns a list of invalid cells in the grid
+    def getInvalidCells(self):
+        invalid_cells = []
+
+        # Check rows
+        for row_num, row in enumerate(self.rows):
+            for col_num, value in enumerate(row):
+                if value is None:
+                    continue
+                temp = row.copy()
+                temp.pop(col_num)
+                if value in temp:
+                    invalid_cells.append((row_num, col_num))
+
+        # Check columns
+        for col_num, col in enumerate(self.cols):
+            for row_num, value in enumerate(col):
+                if value is None:
+                    continue
+                temp = col.copy()
+                temp.pop(row_num)
+                if value in temp:
+                    if (row_num, col_num) not in invalid_cells:
+                        invalid_cells.append((row_num, col_num))
+
+        # Check boxes
+        for box_num, box in enumerate(self.boxes):
+            for cell_num, value in enumerate(box):
+                if value is None:
+                    continue
+                temp = box.copy()
+                temp.pop(cell_num)
+                if value in temp:
+                    row_num = (box_num // 3) * 3 + cell_num // 3
+                    col_num = (box_num % 3) * 3 + cell_num % 3
+                    if (row_num, col_num) not in invalid_cells:
+                        invalid_cells.append((row_num, col_num))
+
+        return invalid_cells
+
     # Fill puzzle using the template provided
     def populatePuzzle(self, puzzle):
         self.rows = puzzle
-        self.constructDataStructures()
         for i, row in enumerate(puzzle):
             for j, num in enumerate(row):
                 cell = self.getCell(i, j)
@@ -996,8 +1124,8 @@ class SudokuGrid(QWidget):
             else:
                 self.getCell(coords[0]+1, coords[1]).setFocus()
 
+    # Solve if valid or display dialog box if invalid
     def solveCurrentGrid(self):
-        # Solve if valid or display dialog box if invalid
         if self.isValid():
             puzzle = Sudoku(3, 3, board=self.rows).solve()
             self.populatePuzzle(puzzle.solve().board)
@@ -1011,8 +1139,8 @@ class SudokuGrid(QWidget):
     def isNoteModeEnabled(self):
         return self.noteMode
 
+    # Checks validity of the current grid
     def isValid(self):
-        # Checks validity of the current grid
         for row in self.rows:
             row = [i for i in row if i is not None]
             if len(row) != len(set(row)):
@@ -1031,10 +1159,11 @@ class SudokuGrid(QWidget):
 class Cell(QLabel):
     def __init__(self, value=None, parent=None, coords=None):
         super(Cell, self).__init__()
-        self.parent = parent
+        self.grid = parent
         self.coords = coords
         self.value = value
         self.given = False
+        self.valid = True
         self.notes = []
         if value is not None:
             self.setText(str(value))
@@ -1051,6 +1180,9 @@ class Cell(QLabel):
     def isGiven(self):
         return self.given
 
+    def isValid(self):
+        return self.valid
+
     def focusInEvent(self, event):
         if self.isGiven():
             self.setStyleSheet(AppTheme.given_cell_focus_in_ss)
@@ -1058,39 +1190,45 @@ class Cell(QLabel):
             self.setStyleSheet(AppTheme.cell_focus_in_ss)
 
     def focusOutEvent(self, event):
-        self.parent.currentCell = self
+        self.grid.currentCell = self
         if self.isGiven():
-            self.setStyleSheet(AppTheme.given_cell_default_ss)
+            if self.isValid():
+                self.setStyleSheet(AppTheme.given_cell_default_ss)
+            else:
+                self.setStyleSheet(AppTheme.invalid_given_cell_ss)
         else:
-            self.setStyleSheet(AppTheme.cell_default_ss)
+            if self.isValid():
+                self.setStyleSheet(AppTheme.cell_default_ss)
+            else:
+                self.setStyleSheet(AppTheme.invalid_cell_ss)
 
     # Fills or clears focused cell depending on key stroke
     def keyPressEvent(self, event):
         # Used to fill cells with a value
         if (event.key() >= Qt.Key_1 and event.key() <= Qt.Key_9) and (not self.isGiven()):
             # Sets notes in the cell
-            if self.parent.isNoteModeEnabled():
+            if self.grid.isNoteModeEnabled():
                 text = self.constructNoteString(str(event.key() - Qt.Key_0))
                 self.setFont(AppTheme.cell_note_font)
-                self.parent.updateDataStructures(None, self.coords)
+                self.grid.updateDataStructures(None, self.coords)
             # Sets number in the cell
             else:
                 text = str(event.key() - Qt.Key_0)
                 if text not in self.notes:
                     self.notes.append(text)
                 self.setFont(AppTheme.cell_default_font)
-                self.parent.updateDataStructures(int(text), self.coords)
+                self.grid.updateDataStructures(int(text), self.coords)
             self.setText(text)
         # Used to clear a cell
         elif (event.key() == Qt.Key_Backspace or event.key() == Qt.Key_Delete) and (not self.isGiven()):
             self.setText('')
-            if self.parent.isNoteModeEnabled():
+            if self.grid.isNoteModeEnabled():
                 self.notes.clear()
-            self.parent.updateDataStructures(None, self.coords)
+            self.grid.updateDataStructures(None, self.coords)
         # Used for cell navigation with arrow keys
         elif (event.key() >= Qt.Key_Left and event.key() <= Qt.Key_Down):
             # Pass coords of current cell and a string containing the move
-            self.parent.arrowMove(self.coords, QKeySequence(event.key()).toString())
+            self.grid.arrowMove(self.coords, QKeySequence(event.key()).toString())
 
 
     # Creates a properly formatted string for the cell
@@ -1135,22 +1273,36 @@ class ApiThread(QThread):
     finished = pyqtSignal(list)
 
     # Pass in the request function, the function to call when finished, and the full api url
-    def __init__(self, func, on_finish, url):
+    def __init__(self, request_function, on_finish, url):
         super(ApiThread, self).__init__()
-        self.func = func
+        self.request_function = request_function
         self.finished.connect(on_finish)
         self.url = url
         self.start()
 
     def run(self):
         try:
-            result = self.func(self.url)
+            result = self.request_function(self.url)
         except Exception as e:
             print('exception in thread is %s' % e)
             result = ['Connection Error', e]
         finally:
             self.finished.emit(result)
 
+
+class CalculationThread(QThread):
+    finished = pyqtSignal(list)
+
+    def __init__(self, func, on_finish, target):
+        super(CalculationThread, self).__init__()
+        self.function = func
+        self.finished.connect(on_finish)
+        self.target = target
+        self.start()
+
+    def run(self):
+        result = self.function(self.target)
+        self.finished.emit(result)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
