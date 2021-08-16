@@ -1,0 +1,4 @@
+py_sudoku==1.0.1
+requests==2.25.1
+PyQt5==5.15.4
+sudoku==0.1

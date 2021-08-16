@@ -13,9 +13,8 @@ dictionary_api_url = 'https://api.dictionaryapi.dev/api/v2/entries/en_US/'
 
 # TODO:
 #   MirriamWebster backup api
-#   Calculation thread for killer/mathdoku recursion
 #   Definition widget html formatting
-#   Difficulty selection
+#   Difficulty selection for sudoku solver tab
 #   Proper fix for requests.get() exceptions -> maybe rework ApiThread for better readability
 
 
@@ -28,12 +27,14 @@ class AppTheme:
                '    border: 2px solid rgb(240, 240, 240);'
                '}'
                'QTabBar::tab:disabled {'
-               '    width: 78px;' 
+               '    width: 1px;' 
                '    color: transparent;'
                '    background: white;}'
                'QTabWidget::tab-bar{'
                '    left: 1px;'
                '}')
+
+    home_title_font = QFont('yu Gothic Medium', 30, QFont.Bold)
 
     action_button_ss = ('QPushButton{'
                         '    background-color: rgb(130, 130, 130);'
@@ -162,31 +163,45 @@ class MainWindow(QMainWindow):
                 self.length_dict[len(word)].append(word)
         del valid_words
 
-        self.killerTab = KillerTab()
-        self.mathdokuTab = MathdokuTab()
-        self.solverTab = SolverTab()
-        self.crosswordTab = CrosswordTab(self.length_dict)
-        self.anagramTab = AnagramTab(self.length_dict)
-        self.notesTab = NotesTab()
+        self.TabDictionary = {}
+        self.TabDictionary['Killer Sudoku'] = KillerTab()
+        self.TabDictionary['Mathdoku'] = MathdokuTab()
+        self.TabDictionary['Sudoku Solver'] = SolverTab()
+        self.TabDictionary['Crossword'] = CrosswordTab(self.length_dict)
+        self.TabDictionary['Anagrams'] = AnagramTab(self.length_dict)
+        self.TabDictionary['Notes'] = NotesTab()
+
+        for key in self.TabDictionary:
+            self.TabDictionary[key].tabBar = self.TabBar
+            self.Tabs.addTab(self.TabDictionary[key], key)
+
+        self.TabDictionary['Home'] = HomeTab(self.TabDictionary)
+        self.TabDictionary['Home'].change_tab.connect(self.Tabs.setTab)
+        self.Tabs.insertTab(0, self.TabDictionary['Home'], 'Home')
+        self.Tabs.setTabIcon(0, QIcon('puzzle_pieces.jpg'))
+        self.Tabs.setIconSize(QSize(30, 30))
+        self.Tabs.setCurrentIndex(0)
+
         self.spacerTab = QWidget()
         self.closeTab = QWidget()
 
-        self.Tabs.addTab(self.killerTab, 'Killer Sudoku')
-        self.Tabs.addTab(self.mathdokuTab, 'Mathdoku')
-        self.Tabs.addTab(self.solverTab, 'Sudoku Solver')
-        self.Tabs.addTab(self.crosswordTab, 'Crossword')
-        self.Tabs.addTab(self.anagramTab, 'Anagrams')
-        self.Tabs.addTab(self.notesTab, 'Notes')
         # Add disabled spacing tab for alignment (made transparent in QTabWidget style sheet)
-        self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
-        self.Tabs.setTabEnabled(6, False)
+        # self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
+        # self.Tabs.setTabEnabled(7, False)
+
         self.Tabs.addTab(self.closeTab, 'Close X')
 
 
-# Old subclass for tab widget
+# Subclass for tab widget
 class TabsWidget(QTabWidget):
     def __init__(self):
         super(TabsWidget, self).__init__()
+
+    def setTab(self, tab_name):
+        for index in range(self.count()):
+            if self.tabText(index) == tab_name:
+                self.setCurrentIndex(index)
+        print(tab_name)
 
 
 # Custom subclass for tab bar
@@ -225,6 +240,60 @@ class TabBar(QTabBar):
         delta = QPoint(event.globalPos() - self.oldPos)
         self.MainWindow.move(self.MainWindow.x() + delta.x(), self.MainWindow.y() + delta.y())
         self.oldPos = event.globalPos()
+
+
+class HomeTab(QWidget):
+    change_tab = pyqtSignal(str)
+
+    def __init__(self, tabs):
+        super(HomeTab, self).__init__()
+        self.layout = QGridLayout()
+        self.layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.setLayout(self.layout)
+
+        self.titleLayout = QHBoxLayout()
+        self.titleLayout.setAlignment(Qt.AlignHCenter)
+        self.titleLayout.setContentsMargins(0, 0, 0, 0)
+        self.titleLayout.setSpacing(0)
+        self.layout.addLayout(self.titleLayout, 0, 0)
+
+        self.title_image = QLabel()
+        self.title_image.setScaledContents(True)
+        self.title_image.setMaximumSize(50, 50)
+        self.title_image.setPixmap(QPixmap('puzzle_pieces.jpg'))
+        self.title_image.setAlignment(Qt.AlignRight)
+        self.titleLayout.addWidget(self.title_image)
+
+        self.titleLabel = QLabel('PuzzleHelper', font=AppTheme.home_title_font)
+        self.titleLabel.setStyleSheet('QLabel{color: rgb(80, 80, 80);}')
+        self.titleLabel.setMaximumWidth(330)
+        self.titleLabel.setAlignment(Qt.AlignCenter)
+        self.titleLayout.addWidget(self.titleLabel)
+
+        self.title_image_2 = QLabel()
+        self.title_image_2.setScaledContents(True)
+        self.title_image_2.setMaximumSize(50, 50)
+        self.title_image_2.setPixmap(QPixmap('puzzle_pieces.jpg'))
+        self.title_image_2.setAlignment(Qt.AlignLeft)
+        self.titleLayout.addWidget(self.title_image_2)
+
+        self.spacerWidget = QWidget()
+        self.spacerWidget.setMinimumHeight(30)
+        self.layout.addWidget(self.spacerWidget, 1, 0)
+
+        # Create grid of buttons
+        # When a button is clicked, emit the change_tab signal with the button's current text
+        self.tabButtonsLayout = QGridLayout()
+        self.tabButtonsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.tabButtonsLayout.setHorizontalSpacing(20)
+        self.tabButtonsLayout.setVerticalSpacing(20)
+        self.layout.addLayout(self.tabButtonsLayout, 2, 0)
+        for i, tab_key in enumerate(tabs):
+            button = QPushButton(tab_key, font=AppTheme.title_label_font)
+            button.setStyleSheet(AppTheme.action_button_ss)
+            button.setMinimumSize(260, 70)
+            button.clicked.connect(lambda: self.change_tab.emit(self.sender().text()))
+            self.tabButtonsLayout.addWidget(button, i // 2, i % 2)
 
 
 # Custom subclass for killer sudoku tab
@@ -354,7 +423,7 @@ class KillerTab(QWidget):
         self.optionsRefreshButton.clicked.connect(self.refreshOptions)
         self.combinationsLayout.addWidget(self.optionsRefreshButton)
 
-    # Clears currently selected options
+    # Clears highlight of currently selected options
     def refreshOptions(self):
         for i in range(self.optionsLayout.count()):
             self.optionsLayout.itemAt(i).widget().setChecked(False)
@@ -373,18 +442,28 @@ class KillerTab(QWidget):
         self.calculateButton.setDisabled(True)
         self.calculateButton.setText('Loading...')
 
-        # Start thread
+        # Add cancel button
+        cancel_button = QPushButton('Cancel', font=AppTheme.action_button_font)
+        cancel_button.setStyleSheet(AppTheme.action_button_ss)
+        cancel_button.clicked.connect(self.cancelCalculation)
+        self.optionsLayout.addWidget(cancel_button)
+
+        # Starts calculation thread
         target = (self.cageSpin.value(), self.totalSpin.value())
         self.calculationThread = CalculationThread(self.calculateOptions, self.populateOptions, target)
 
     # Function passed to CalculationThread for finding valid options
     def calculateOptions(self, target):
+        self.cancelCurrentCalc = False
+
         cage_size, total = target
         valid_options = []
 
         # Recursion algorithm for finding valid combinations
         # l is a list of currently checked numbers
         def killerRecursion(depth, l):
+            if self.cancelCurrentCalc: return
+
             for i in range(1, 10, 1):
                 # Check if number is already in current cage
                 if i not in l:
@@ -396,6 +475,9 @@ class KillerTab(QWidget):
                             # Check if option is already in correct list
                             if sorted(temp) not in valid_options:
                                 valid_options.append(sorted(temp))
+                            break
+                        elif sum(temp) > total:
+                            break
                     else:
                         killerRecursion(depth - 1, temp)
 
@@ -410,11 +492,24 @@ class KillerTab(QWidget):
                     killerRecursion(cage_size, [])
         return valid_options
 
+    def cancelCalculation(self):
+        self.cancelCurrentCalc = True
+
+        # Clears current layout
+        for i in reversed(range(self.optionsLayout.count())):
+            self.optionsLayout.itemAt(i).widget().setParent(None)
+
+        # Display 'calculation cancelled' in the options widget
+        self.optionsLayout.addWidget(QLabel('Calculation Cancelled', font=AppTheme.subtitle_label_font))
+
     # Called when CalculationThread finishes to populate the widget with the valid options
     def populateOptions(self, valid_options):
         # Renable calculate button
         self.calculateButton.setDisabled(False)
         self.calculateButton.setText('Calculate')
+
+        # Don't populate if recursion was cancelled
+        if self.cancelCurrentCalc: return
 
         # Clears all currently displayed options
         for i in reversed(range(self.optionsLayout.count())):
@@ -586,7 +681,7 @@ class MathdokuTab(QWidget):
         self.optionsRefreshButton.clicked.connect(self.refreshOptions)
         self.combinationsLayout.addWidget(self.optionsRefreshButton)
 
-    # Clear currently selected options
+    # Clear highlight of currently selected options
     def refreshOptions(self):
         for i in range(self.optionsLayout.count()):
             self.optionsLayout.itemAt(i).widget().setChecked(False)
@@ -600,22 +695,33 @@ class MathdokuTab(QWidget):
         self.optionsLayout.addWidget(QLabel('Loading...', font=AppTheme.subtitle_label_font))
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
+        # Add cancel button
+        cancel_button = QPushButton('Cancel', font=AppTheme.action_button_font)
+        cancel_button.setStyleSheet(AppTheme.action_button_ss)
+        cancel_button.clicked.connect(self.cancelCalculation)
+        self.optionsLayout.addWidget(cancel_button)
+
         # Set calculate button to loading
         self.calculateButton.setDisabled(True)
         self.calculateButton.setText('Loading...')
 
+        # Starts calculation thread
         target = (self.sizeCombo.currentText(), self.cageSpin.value(), self.operationCombo.currentText(), self.totalSpin.value())
         self.calculationThread = CalculationThread(self.calculateOptions, self.populateOptions, target)
 
     # Funtion passed to calculation thread to get valid options
     def calculateOptions(self, target):
+        self.cancelCurrentCalc = False
+
         # Stores correct combinations
         valid_options = []
         puzzle_size, cage_size, operation, total = target
 
         # Recursion algorithm for finding valid combinations
-        # l is a list of currently checked numbers
+        # l is a list of potential numbers
         def mathdokuRecurse(depth, l):
+            if self.cancelCurrentCalc: return
+
             for i in range(1, int(puzzle_size[0]) + 1, 1):
                 temp = l.copy()
                 temp.append(i)
@@ -629,20 +735,35 @@ class MathdokuTab(QWidget):
                         # Checks if current cage is already in list
                         if sorted(temp) not in valid_options:
                             valid_options.append(sorted(temp))
+                        break
+                    elif eval(m) > total:
+                        break
                 else:
                     mathdokuRecurse(depth - 1, temp)
 
         # Starts recursion
         for i in range(1, int(puzzle_size[0]) + 1, 1):
-            print('recurse')
             mathdokuRecurse(cage_size - 1, [i])
 
         return valid_options
+
+    def cancelCalculation(self):
+        self.cancelCurrentCalc = True
+
+        # Clears current layout
+        for i in reversed(range(self.optionsLayout.count())):
+            self.optionsLayout.itemAt(i).widget().setParent(None)
+
+        # Display 'calculation cancelled' in the options widget
+        self.optionsLayout.addWidget(QLabel('Calculation Cancelled', font=AppTheme.subtitle_label_font))
 
     def populateOptions(self, valid_options):
         # Renable calculate button
         self.calculateButton.setDisabled(False)
         self.calculateButton.setText('Calculate')
+
+        # Don't populate if recursion was cancelled
+        if self.cancelCurrentCalc: return
 
         # Clears current layout
         for i in reversed(range(self.optionsLayout.count())):
@@ -820,10 +941,9 @@ class CrosswordTab(QWidget):
         self.setDefinitionWidgetLoading()
 
         word = list_item.text()
-        url = dictionary_api_url + word
 
-        # Start thread and pass it the request function, th function to call on completion and the url
-        self.apiThread = ApiThread(self.requestDefinition, self.populateDefinitionWidget, url)
+        # Start thread and pass it the request function, the function to call on completion and the url
+        self.apiThread = ApiThread(self.requestDefinition, self.populateDefinitionWidget, word)
 
     # Sets the definition widget to loading state
     def setDefinitionWidgetLoading(self):
@@ -842,6 +962,11 @@ class CrosswordTab(QWidget):
             self.definitionWidget.setText(def_json[0])
             self.definitionWidget.setAlignment(Qt.AlignCenter)
             return
+        elif def_json[0] == 'No Definitions Found':
+            self.definitionWidget.setText('No Definitions Found')
+            self.definitionWidget.setAlignment(Qt.AlignCenter)
+            return
+
         print('request data: ')
         print(json.dumps(def_json, indent=4, sort_keys=True))
 
@@ -866,7 +991,6 @@ class CrosswordTab(QWidget):
                     kwargs['definition'] = definition['definition']
                     kwargs['synonyms'] = ', '.join(definition['synonyms']) if definition['synonyms'] else 'None found'
                     html = html + self.meaning_html.format(**kwargs)
-            print(word_info.keys())
             formatted_html = formatted_html + html
         return formatted_html
 
@@ -1273,20 +1397,23 @@ class ApiThread(QThread):
     finished = pyqtSignal(list)
 
     # Pass in the request function, the function to call when finished, and the full api url
-    def __init__(self, request_function, on_finish, url):
+    def __init__(self, request_function, on_finish, word):
         super(ApiThread, self).__init__()
         self.request_function = request_function
         self.finished.connect(on_finish)
-        self.url = url
+        self.dictionary_api_url = dictionary_api_url + word
         self.start()
 
     def run(self):
         try:
-            result = self.request_function(self.url)
+            result = self.request_function(self.dictionary_api_url)
         except Exception as e:
-            print('exception in thread is %s' % e)
             result = ['Connection Error', e]
+            print(f'Exception in ApiThread: {e}')
         finally:
+            # Catches errors
+            if type(result) == dict:
+                result = ['No Definitions Found', result]
             self.finished.emit(result)
 
 
