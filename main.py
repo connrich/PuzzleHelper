@@ -9,13 +9,14 @@ import json
 import requests
 from collections import Counter
 
-dictionary_api_url = 'https://api.dictionaryapi.dev/api/v2/entries/en_US/'
+DICTIONARY_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en_US/'
 
 # TODO:
 #   MirriamWebster backup api
 #   Definition widget html formatting
 #   Difficulty selection for sudoku solver tab
 #   Proper fix for requests.get() exceptions -> maybe rework ApiThread for better readability
+#   Add saving functionality to notes tab
 
 
 class AppTheme:
@@ -77,6 +78,18 @@ class AppTheme:
                         '}')
 
     toggle_button_font = QFont('Yu Gothic Medium', 10, QFont.Bold)
+
+    scroll_area_ss = ('QScrollArea{'
+                      '   border-radius: 8px;'
+                      '   border: 4px solid rgb(150, 150, 150);'
+                      '   background-color: rgb(255, 255, 255);'
+                      '}'
+                      'QScrollArea QWidget{'
+                      '   background-color: rgb(255, 255, 255);'
+                      '}'
+                      'QScrollArea QScrollBar{'
+                      '   background-color: grey;'
+                      '}')
 
     given_cell_default_ss = ('QLabel{'
                              '    background-color: white;'
@@ -149,9 +162,6 @@ class MainWindow(QMainWindow):
 
         self.show()
 
-        # font, valid = QFontDialog.getFont()
-
-
     # Initializes QWidget subclasses for tabs
     def initTabs(self):
         # Opens dictionary file and parses into a dictionary with word length as the key
@@ -163,6 +173,7 @@ class MainWindow(QMainWindow):
                 self.length_dict[len(word)].append(word)
         del valid_words
 
+        # Inititalize tabs and add them to a dictionary
         self.TabDictionary = {}
         self.TabDictionary['Killer Sudoku'] = KillerTab()
         self.TabDictionary['Mathdoku'] = MathdokuTab()
@@ -171,10 +182,12 @@ class MainWindow(QMainWindow):
         self.TabDictionary['Anagrams'] = AnagramTab(self.length_dict)
         self.TabDictionary['Notes'] = NotesTab()
 
+        # Iterate through tabs and add them to tab bar. Also, create instance variable to store tab bar for each tab
         for key in self.TabDictionary:
             self.TabDictionary[key].tabBar = self.TabBar
             self.Tabs.addTab(self.TabDictionary[key], key)
 
+        # Initialize home tab
         self.TabDictionary['Home'] = HomeTab(self.TabDictionary)
         self.TabDictionary['Home'].change_tab.connect(self.Tabs.setTab)
         self.Tabs.insertTab(0, self.TabDictionary['Home'], 'Home')
@@ -182,26 +195,22 @@ class MainWindow(QMainWindow):
         self.Tabs.setIconSize(QSize(30, 30))
         self.Tabs.setCurrentIndex(0)
 
-        self.spacerTab = QWidget()
-        self.closeTab = QWidget()
-
+        # self.spacerTab = QWidget()
         # Add disabled spacing tab for alignment (made transparent in QTabWidget style sheet)
         # self.Tabs.addTab(self.spacerTab, 'Spacer Tab')
         # self.Tabs.setTabEnabled(7, False)
 
+        self.closeTab = QWidget()
         self.Tabs.addTab(self.closeTab, 'Close X')
 
 
 # Subclass for tab widget
 class TabsWidget(QTabWidget):
-    def __init__(self):
-        super(TabsWidget, self).__init__()
-
+    # Function for Home tab buttons used to set widget
     def setTab(self, tab_name):
         for index in range(self.count()):
             if self.tabText(index) == tab_name:
                 self.setCurrentIndex(index)
-        print(tab_name)
 
 
 # Custom subclass for tab bar
@@ -242,6 +251,7 @@ class TabBar(QTabBar):
         self.oldPos = event.globalPos()
 
 
+# Subclass for home tab
 class HomeTab(QWidget):
     change_tab = pyqtSignal(str)
 
@@ -407,16 +417,20 @@ class KillerTab(QWidget):
         self.combinationsLayout.addWidget(self.combinationsLabel)
         self.combinationsLabel.setAlignment(Qt.AlignHCenter)
 
-        # Create area to store combinations
-        self.optionsWidget = QWidget()
-        self.optionsWidget.setMinimumSize(240, 500)
-        self.optionsWidget.setObjectName('optionsWidget')
-        self.optionsWidget.setStyleSheet(AppTheme.options_widget_ss)
-        self.optionsLayout = QGridLayout()
+        # Create area to store correct combinations
+        self.optionsScrollArea = QScrollArea()
+        self.optionsScrollArea.setStyleSheet(AppTheme.scroll_area_ss)
+        self.optionsScrollArea.setWidgetResizable(True)
+        self.optionsScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.optionsWidget = QWidget(self.optionsScrollArea)
+        self.optionsScrollArea.setWidget(self.optionsWidget)
+        self.optionsWidget.setBaseSize(240, 500)
+        self.optionsLayout = QGridLayout(self.optionsWidget)
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.optionsWidget.setLayout(self.optionsLayout)
-        self.combinationsLayout.addWidget(self.optionsWidget)
+        self.combinationsLayout.addWidget(self.optionsScrollArea)
 
+        # Create button to clear currently selected buttons
         self.optionsRefreshButton = QPushButton('Clear Selections')
         self.optionsRefreshButton.setStyleSheet(AppTheme.action_button_ss)
         self.optionsRefreshButton.setFont(AppTheme.action_button_font)
@@ -665,14 +679,17 @@ class MathdokuTab(QWidget):
         self.combinationsLabel.setAlignment(Qt.AlignHCenter)
 
         # Create area to store correct combinations
-        self.optionsWidget = QWidget()
-        self.optionsWidget.setMinimumSize(240, 500)
-        self.optionsWidget.setObjectName('optionsWidget')
-        self.optionsWidget.setStyleSheet(AppTheme.options_widget_ss)
-        self.optionsLayout = QGridLayout()
+        self.optionsScrollArea = QScrollArea()
+        self.optionsScrollArea.setStyleSheet(AppTheme.scroll_area_ss)
+        self.optionsScrollArea.setWidgetResizable(True)
+        self.optionsScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.optionsWidget = QWidget(self.optionsScrollArea)
+        self.optionsScrollArea.setWidget(self.optionsWidget)
+        self.optionsWidget.setBaseSize(240, 500)
+        self.optionsLayout = QGridLayout(self.optionsWidget)
         self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         self.optionsWidget.setLayout(self.optionsLayout)
-        self.combinationsLayout.addWidget(self.optionsWidget)
+        self.combinationsLayout.addWidget(self.optionsScrollArea)
 
         # Create button to clear currently selected buttons
         self.optionsRefreshButton = QPushButton('Clear Selections')
@@ -763,7 +780,7 @@ class MathdokuTab(QWidget):
         self.calculateButton.setText('Calculate')
 
         # Don't populate if recursion was cancelled
-        if self.cancelCurrentCalc: return
+        # if self.cancelCurrentCalc: return
 
         # Clears current layout
         for i in reversed(range(self.optionsLayout.count())):
@@ -782,6 +799,7 @@ class MathdokuTab(QWidget):
             self.optionsLayout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
 
+# Custom subclass for solver tab. Includes fully functional sudoku grid
 class SolverTab(QWidget):
     def __init__(self):
         super(SolverTab, self).__init__()
@@ -851,6 +869,7 @@ class SolverTab(QWidget):
         self.solverLayout.addWidget(self.sudokuGrid, 0, 0)
 
 
+# Custom sublass for crossword dictionary tab
 class CrosswordTab(QWidget):
     def __init__(self, length_dict):
         super(CrosswordTab, self).__init__()
@@ -1011,6 +1030,7 @@ class CrosswordTab(QWidget):
                     )
 
 
+# Custom subclass for anagram dictionary tab
 class AnagramTab(CrosswordTab):
     def __init__(self, length_dict):
         super(AnagramTab, self).__init__(length_dict)
@@ -1046,6 +1066,7 @@ class AnagramTab(CrosswordTab):
                 self.wordList.addItem(item)
 
 
+# Custom subclass for a text editor
 class NotesTab(QWidget):
     def __init__(self):
         super(NotesTab, self).__init__()
@@ -1079,6 +1100,7 @@ class NotesTab(QWidget):
         # self.notesTextEdit.setFont(QFontDialog.getFont())
 
 
+# Custom sublass for creating a functional sudoku grid
 class SudokuGrid(QWidget):
     # puzzle is a list of 9 rows, each row is a list of 9 digits
     def __init__(self, puzzle=None):
@@ -1371,6 +1393,7 @@ class Cell(QLabel):
         return note
 
 
+# Subclass for calculate buttons
 class CalculateButton(QPushButton):
     def __init__(self, label):
         super(CalculateButton, self).__init__(label)
@@ -1401,12 +1424,12 @@ class ApiThread(QThread):
         super(ApiThread, self).__init__()
         self.request_function = request_function
         self.finished.connect(on_finish)
-        self.dictionary_api_url = dictionary_api_url + word
+        self.DICTIONARY_API_URL = DICTIONARY_API_URL + word
         self.start()
 
     def run(self):
         try:
-            result = self.request_function(self.dictionary_api_url)
+            result = self.request_function(self.DICTIONARY_API_URL)
         except Exception as e:
             result = ['Connection Error', e]
             print(f'Exception in ApiThread: {e}')
@@ -1417,6 +1440,7 @@ class ApiThread(QThread):
             self.finished.emit(result)
 
 
+# Thread for calculation of valid number combinations
 class CalculationThread(QThread):
     finished = pyqtSignal(list)
 
