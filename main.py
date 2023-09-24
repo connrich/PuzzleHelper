@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle('Puzzle Helper')
-        self.setMinimumSize(500, 500)
+        self.setMinimumSize(900, 900)
         self.setWindowIcon(QIcon('puzzle_pieces.jpg'))
         self.setStyleSheet('QMainWindow{background: white;}')
         self.setWindowFlag(Qt.FramelessWindowHint)
@@ -276,7 +276,6 @@ class HomeTab(QWidget):
 
         self.titleLabel = QLabel('PuzzleHelper', font=AppTheme.home_title_font)
         self.titleLabel.setStyleSheet('QLabel{color: rgb(80, 80, 80);}')
-        self.titleLabel.setMaximumWidth(330)
         self.titleLabel.setAlignment(Qt.AlignCenter)
         self.titleLayout.addWidget(self.titleLabel)
 
