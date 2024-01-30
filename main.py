@@ -180,6 +180,7 @@ class MainWindow(QMainWindow):
         self.TabDictionary['Sudoku Solver'] = SolverTab()
         self.TabDictionary['Crossword'] = CrosswordTab(self.length_dict)
         self.TabDictionary['Anagrams'] = AnagramTab(self.length_dict)
+        self.TabDictionary['Wordscapes'] = WordscapesTab(self.length_dict)
         self.TabDictionary['Notes'] = NotesTab()
 
         # Iterate through tabs and add them to tab bar. Also, create instance variable to store tab bar for each tab
@@ -1035,26 +1036,144 @@ class AnagramTab(CrosswordTab):
         super(AnagramTab, self).__init__(length_dict)
         self.searchSyntaxLabel.deleteLater()
 
+    # Called when a word is searched to find possible words and add them to the list widget
     def populateWordList(self):
-        given_word = self.searchLineEdit.text()
-        letter_freq = Counter(given_word)
+        # Get current text that was entered
+        given_word = self.searchLineEdit.text().lower()
 
-        # Finds words with the same amount of letters using collections.Counter
-        # 'but' == 'tub' because each has one b, one u, and one t
-        anagrams = []
+        # Gets list of letters and their location within the word
+        indexed_letters = [(char, index) for index, char in enumerate(given_word) if char.isalpha()]
+
+        # Iterates through the list stored at the appropriate length key
+        # If the word has letters in matching locations it appends it to possible_words
+        possible_words = []
         for word in self.lengthDictionary[len(given_word)]:
-            if Counter(word) == letter_freq:
-                anagrams.append(word)
-
-        # Remove the word itself from the list
-        if given_word in anagrams:
-            anagrams.remove(given_word)
+            for letter, index in indexed_letters:
+                if word[index] != letter:
+                    break
+            else:
+                possible_words.append(word)
 
         # Refresh the list with all current potential words
         self.wordList.clear()
-        if anagrams:
+        if possible_words:
             self.wordList.setEnabled(True)
-            self.wordList.addItems(anagrams)
+            self.wordList.addItems(possible_words)
+        else:
+            # Display message if no valid words were found
+            self.wordList.setEnabled(False)
+            none_found = ['', 'No', 'matching', 'words', 'found']
+            for word in none_found:
+                item = QListWidgetItem(word)
+                item.setTextAlignment(Qt.AlignHCenter)
+                self.wordList.addItem(item)
+
+
+# Custom subclass for anagram dictionary tab
+class WordscapesTab(QWidget):
+    def __init__(self, length_dict):
+        super(WordscapesTab, self).__init__()
+        # Loads the dictionary of words sorted by length
+        self.lengthDictionary = length_dict
+
+        # Master layout
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+        self.layout.setAlignment(Qt.AlignTop)
+
+        # Sets a label for search bar
+        self.searchLabel = QLabel('Search: ')
+        self.searchLabel.setFont(AppTheme.subtitle_label_font)
+        self.layout.addWidget(self.searchLabel, 0, 0)
+
+        # Search bar for word entry
+        self.searchLineEdit = QLineEdit()
+        font = QFont('yu Gothic Medium', 12, QFont.Bold)
+        font.setLetterSpacing(QFont.PercentageSpacing, 115)
+        self.searchLineEdit.setFont(font)
+        self.layout.addWidget(self.searchLineEdit, 0, 1)
+
+        # Search button for generating the list of potential words
+        self.searchButton = QPushButton('Search')
+        self.searchButton.setStyleSheet(AppTheme.action_button_ss)
+        self.searchButton.setFont(AppTheme.action_button_font)
+        self.searchButton.clicked.connect(self.populateWordList)
+        self.searchButton.setShortcut(QKeySequence('Return'))
+        self.layout.addWidget(self.searchButton, 0, 2)
+
+        # Sets a label for possible letters bar
+        self.possibleLettersLabel = QLabel('Possible Letters: ')
+        self.possibleLettersLabel.setFont(AppTheme.subtitle_label_font)
+        self.layout.addWidget(self.possibleLettersLabel, 1, 0)
+
+        # Search bar for possible letters
+        self.possibleLettersEdit = QLineEdit()
+        font = QFont('yu Gothic Medium', 12, QFont.Bold)
+        font.setLetterSpacing(QFont.PercentageSpacing, 115)
+        self.possibleLettersEdit.setFont(font)
+        self.layout.addWidget(self.possibleLettersEdit, 1, 1)
+
+        # Sets label to inform user of search syntax
+        self.searchSyntaxLabel = QLabel(
+            'Use any symbol to denote a space/blank square (i.e. testing = t!s_in#)')
+        self.searchSyntaxLabel.setFont(AppTheme.subtitle_label_font)
+        self.layout.addWidget(self.searchSyntaxLabel, 2, 0, 1, 0, Qt.AlignCenter)
+
+        # Create horizontal layout for potential words/definition area
+        self.mainLayout = QHBoxLayout()
+        self.layout.addLayout(self.mainLayout, 3, 0, 1, 0)
+
+        # List widget to store all potential words
+        self.wordList = QListWidget()
+        self.wordList.setMaximumWidth(210)
+        self.wordList.setFont(AppTheme.default_note_tab_font)
+        # self.wordList.itemClicked.connect(self.getApiDefinition)
+        self.mainLayout.addWidget(self.wordList)
+
+        # Widget to display definiton and information about a word
+        self.definitionWidget = QTextEdit()
+        self.definitionWidget.setReadOnly(True)
+        self.mainLayout.addWidget(self.definitionWidget)
+
+    # Called when a word is searched to find possible words and add them to the list widget
+    def populateWordList(self):
+        # Letters available in the puzzle
+        possible_letters = self.possibleLettersEdit.text()
+
+        # Get current text that was entered
+        given_word = self.searchLineEdit.text().lower()
+        if len(given_word) == 0:
+            given_word = ['-' for _ in range(len(possible_letters))]
+
+        # Gets list of letters and their location within the word
+        indexed_letters = [(char, index) for index, char in enumerate(given_word) if char.isalpha()]
+
+        # Iterates through the list stored at the appropriate length key
+        # If the word has letters in matching locations and only contains potential letters
+        potential_words = []
+        for word in self.lengthDictionary[len(given_word)]:
+            for letter, index in indexed_letters:
+                if word[index] != letter:
+                    break
+            else:
+                potential_words.append(word)
+        
+        possible_words = []
+        for word in potential_words:
+            available_letters = Counter(possible_letters)
+            for letter in word:
+                if available_letters[letter] > 0:
+                    available_letters[letter] -= 1
+                else:
+                    break
+            else:
+                possible_words.append(word)
+
+        # Refresh the list with all current potential words
+        self.wordList.clear()
+        if possible_words:
+            self.wordList.setEnabled(True)
+            self.wordList.addItems(possible_words)
         else:
             # Display message if no valid words were found
             self.wordList.setEnabled(False)
