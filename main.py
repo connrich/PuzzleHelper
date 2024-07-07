@@ -1041,15 +1041,12 @@ class AnagramTab(CrosswordTab):
         # Get current text that was entered
         given_word = self.searchLineEdit.text().lower()
 
-        # Gets list of letters and their location within the word
-        indexed_letters = [(char, index) for index, char in enumerate(given_word) if char.isalpha()]
-
         # Iterates through the list stored at the appropriate length key
-        # If the word has letters in matching locations it appends it to possible_words
+        # If the word has matching letters it appends it to possible_words
         possible_words = []
         for word in self.lengthDictionary[len(given_word)]:
-            for letter, index in indexed_letters:
-                if word[index] != letter:
+            for letter in given_word:
+                if word.count(letter) != given_word.count(letter):
                     break
             else:
                 possible_words.append(word)
